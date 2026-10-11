@@ -215,6 +215,7 @@ function(external_project)
             # every subsequent build).
             list(APPEND CMD COMMAND restore_git_tree ${SOURCE_DIR})
             list(APPEND CMD COMMAND cd ${SOURCE_DIR})
+            set(ALWAYS_PREPARE ALWAYS)
         endif()
     endif()
     if(DEFINED _PATCH_OVERLAY)
@@ -258,7 +259,12 @@ function(external_project)
         COMMAND "${CMD}"
         TRIGGERS ${TRIGGERS}
         OUTPUTS ${SOURCE_LIST}
+        # A tree we did not create (a git submodule) can be changed behind our
+        # back (a `git submodule update`, say), and its patches would then be
+        # missing while this step still looks up to date. Re-run it
+        # unconditionally in that case; it is cheap.
         ${ONLY_ONCE}
+        ${ALWAYS_PREPARE}
     )
 
     # (Configure) dependencies.
