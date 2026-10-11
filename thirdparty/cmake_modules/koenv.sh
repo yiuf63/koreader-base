@@ -141,6 +141,39 @@ apply_patches() { (
     done
 ); }
 
+# Put the git working tree(s) under a directory back to their committed state.
+#
+# Used for projects whose `SOURCE_DIR` is a git checkout that we patch in place
+# (a submodule, say) rather than one a download step recreates: patching is not
+# idempotent, so a second build would otherwise try to re-apply the patches and
+# fail.
+#
+# The checkout may be the directory itself or nested inside it (for a project
+# that is a plain directory containing one or more submodules), so look for
+# both.
+restore_git_tree() { (
+    [ $# -eq 1 ] || return 1
+    [ -d "$1" ] || return 1
+    roots=
+    if [ -e "$1/.git" ]; then
+        roots="$1"
+    fi
+    # A submodule's `.git` is a file, hence `-e` rather than `-d`.
+    nested="$(find "$1" -mindepth 2 -maxdepth 3 -name .git 2>/dev/null)"
+    if [ -n "${nested}" ]; then
+        roots="${roots}${roots:+
+}$(printf '%s\n' "${nested}" | sed 's|/\.git$||')"
+    fi
+    [ -n "${roots}" ] || return 0
+    printf '%s\n' "${roots}" | while IFS= read -r root; do
+        printf '* Restoring %s . . .\n' "${root##*/}"
+        git -C "${root}" checkout -- . || return 1
+        # Drop files the patches may have introduced (and any `.rej`/`.orig`
+        # leftovers from a failed run).
+        git -C "${root}" clean -fdq || return 1
+    done
+); }
+
 clean_tree() { (
     [ $# -eq 2 ] || return 1
     tree="$1"

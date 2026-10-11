@@ -198,6 +198,39 @@ if(NOT ((ANDROID AND MONOLIBTIC) OR APPLE OR EMULATE_READER OR USE_SDL))
     add_custom_target(stl-install ALL DEPENDS ${OUTPUT_DIR}/libs/${STL_NAME})
 endif()
 
+# MinGW-w64's POSIX threading shim.
+#
+# Several thirdparty libraries (crengine, djvulibre, k2pdfopt, tesseract,
+# lunasvg) are built against `libwinpthread-1.dll` and import it by name, so it
+# has to ship alongside them — Windows has no notion of a system-wide libpthread.
+if(WIN32)
+    # NOTE: it is a runtime DLL living in the compiler's `bin/`, not a library
+    #       in one of its `lib/` directories, so `find_compiler_lib_path`
+    #       (which is `find_library` underneath) does not see it.
+    # Its location is not derivable from the compiler's search dirs either
+    # (those point at the GCC-internal directories), so resolve it the same way
+    # the build resolves the compiler itself: through `PATH`.
+    find_file(
+        WINPTHREAD_PATH libwinpthread-1.dll
+        PATHS ENV PATH
+        NO_DEFAULT_PATH
+        NO_CMAKE_FIND_ROOT_PATH
+    )
+    if(NOT WINPTHREAD_PATH)
+        message(FATAL_ERROR "Could not find libwinpthread-1.dll in PATH")
+    endif()
+    message(STATUS "Looking for libwinpthread-1.dll: ${WINPTHREAD_PATH}")
+    append_binary_install_command(CMD_LIST ${WINPTHREAD_PATH} DESTINATION ${OUTPUT_DIR}/libs)
+    add_custom_command(
+        OUTPUT ${OUTPUT_DIR}/libs/libwinpthread-1.dll
+        COMMAND ${CMD_LIST}
+        COMMENT "Installing 'libwinpthread-1.dll'"
+        DEPENDS ${WINPTHREAD_PATH}
+        VERBATIM
+    )
+    add_custom_target(winpthread-install ALL DEPENDS ${OUTPUT_DIR}/libs/libwinpthread-1.dll)
+endif()
+
 # THIRDPARTY. {{{
 
 # android-luajit-launcher

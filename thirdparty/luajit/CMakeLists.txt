@@ -100,6 +100,14 @@ if(USE_LUAJIT_LIB)
         append_install_commands(INSTALL_CMD
             ${STAGING_DIR}/bin/lua51.dll
             DESTINATION ${OUTPUT_DIR}/libs)
+        # `koreader.exe` links against `lua51.dll`, so it has to sit next to it
+        # as well: the Windows loader resolves an executable's imports from its
+        # own directory and the search path, and nothing has registered
+        # `libs/` yet at that point (the launcher does that itself, but only
+        # once it is running).
+        append_install_commands(INSTALL_CMD
+            ${STAGING_DIR}/bin/lua51.dll
+            DESTINATION ${OUTPUT_DIR})
     else()
         append_shared_lib_install_commands(INSTALL_CMD luajit)
     endif()

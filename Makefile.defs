@@ -290,20 +290,22 @@ endef
 
 # ln --symbolic --no-dereference --force --relative
 ifeq ($(CURRENT_OS), darwin)
-  SYMLINK = gln
+  SYMLINK = gln -snfr
+else ifeq ($(CURRENT_OS), msys)
+  # On Windows, MSYS2 emulates `ln -s` by *copying* unless symlink support is
+  # requested explicitly. That silently breaks the build tree: the copies under
+  # `$(OUTPUT_DIR)` never pick up later edits to `$(KOR_BASE)/ffi` and friends,
+  # so the build would keep installing stale Lua modules.
+  # `MSYS=winsymlinks:nativestrict` makes `ln -s` create a real symlink (and
+  # fail loudly instead of copying if it cannot).
+  #
+  # NOTE: this is deliberately scoped to `$(SYMLINK)` rather than exported
+  #       globally: thirdparty builds run `cmake --install`, whose
+  #       `file(INSTALL)` chokes on the symlinks it then encounters
+  #       ("cannot duplicate symlink").
+  SYMLINK = MSYS=winsymlinks:nativestrict ln -snfr
 else
-  SYMLINK = ln
-endif
-SYMLINK += -snfr
-
-# On Windows, MSYS2 emulates `ln -s` by *copying* unless symlink support is
-# requested explicitly. That silently breaks the build tree: the copies under
-# `$(OUTPUT_DIR)` never pick up later edits to `$(KOR_BASE)/ffi` and friends, so
-# the build would keep installing stale Lua modules.
-# Setting `MSYS=winsymlinks:nativestrict` makes `ln -s` create a real symlink
-# (and fail loudly instead of copying if it cannot).
-ifeq ($(CURRENT_OS), msys)
-  export MSYS := winsymlinks:nativestrict
+  SYMLINK = ln -snfr
 endif
 
 # set cross-compiler/host CC and CXX

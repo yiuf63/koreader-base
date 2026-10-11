@@ -206,7 +206,16 @@ function(external_project)
         if(NOT DEFINED _DOWNLOAD AND NOT EXPLICIT_SOURCE_DIR)
             message(FATAL_ERROR "unsupported: with PATCH_FILES and/or PATCH_COMMAND but no DOWNLOAD")
         endif()
-        list(APPEND CMD COMMAND cd ${SOURCE_DIR})
+        if(DEFINED _DOWNLOAD)
+            list(APPEND CMD COMMAND cd ${SOURCE_DIR})
+        else()
+            # The tree is not ours to recreate, so put it back to its pristine
+            # state first: patching is not idempotent, and a previous run would
+            # otherwise leave the patches applied (making this step fail on
+            # every subsequent build).
+            list(APPEND CMD COMMAND restore_git_tree ${SOURCE_DIR})
+            list(APPEND CMD COMMAND cd ${SOURCE_DIR})
+        endif()
     endif()
     if(DEFINED _PATCH_OVERLAY)
         file(GLOB_RECURSE OVERLAY_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${_PATCH_OVERLAY}/*)
