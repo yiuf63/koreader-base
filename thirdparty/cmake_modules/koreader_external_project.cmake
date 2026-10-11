@@ -199,7 +199,11 @@ function(external_project)
     # - patch files
     # - command
     if(DEFINED _PATCH_OVERLAY OR DEFINED _PATCH_FILES OR DEFINED _PATCH_COMMAND)
-        if(NOT DEFINED _DOWNLOAD)
+        # Normally the source tree is created by the download step, which is
+        # where patching has to happen. A project may instead point `SOURCE_DIR`
+        # at a tree that already exists (e.g. a git submodule), in which case
+        # there is nothing to download and the patches are applied in place.
+        if(NOT DEFINED _DOWNLOAD AND NOT EXPLICIT_SOURCE_DIR)
             message(FATAL_ERROR "unsupported: with PATCH_FILES and/or PATCH_COMMAND but no DOWNLOAD")
         endif()
         list(APPEND CMD COMMAND cd ${SOURCE_DIR})

@@ -212,6 +212,15 @@ set_target_properties(djvulibre PROPERTIES
     VISIBILITY_INLINES_HIDDEN TRUE
 )
 target_compile_definitions(djvulibre PRIVATE HAVE_CONFIG_H)
+if(WIN32)
+    # NOTE: djvulibre's headers mark the API as `dllimport` on Windows unless
+    #       the matching *_EXPORT macro is defined while building the library
+    #       itself (that is what its own Makefile.am does), which breaks
+    #       compiling its static data members and function definitions.
+    #       There are two independent switches: `DJVUAPI` (C++ API, DjVuGlobal.h)
+    #       and `DDJVUAPI` (C API, ddjvuapi.h); both are needed here.
+    target_compile_definitions(djvulibre PRIVATE DJVUAPI_EXPORT DDJVUAPI_EXPORT MINILISPAPI_EXPORT)
+endif()
 target_compile_options(djvulibre PRIVATE -Wall)
 # Unbreak build with GCC 16 at higher optimization levels (-O2 and above).
 target_compile_options(djvulibre PRIVATE -fno-strict-aliasing)

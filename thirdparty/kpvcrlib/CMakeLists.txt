@@ -80,6 +80,12 @@ target_include_directories(crengine PRIVATE
     $<TARGET_PROPERTY:crengine::crengine,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
+# `crsetup.h` gates crengine's POSIX-only code paths on these. The toolchain
+# provides `LINUX` (empty on Windows, where crengine takes its own `_WIN32`
+# paths instead).
+if(LINUX)
+    set(_LINUX 1)
+endif()
 configure_file(crsetup.h.cmake crsetup.h)
 # Some source files use `#include "crsetup.h"`, others
 # `#include "../include/crsetup.h"`, so use the brute

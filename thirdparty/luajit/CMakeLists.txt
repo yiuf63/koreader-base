@@ -86,7 +86,23 @@ if(NOT SKIP_LUAJIT_BIN)
 endif()
 
 if(USE_LUAJIT_LIB)
-    append_shared_lib_install_commands(INSTALL_CMD luajit)
+    if(WIN32)
+        # NOTE: MinGW builds produce `lua51.dll` (that name is baked into
+        # LuaJIT's Makefile), but its `install` rule is ELF-shaped: it copies
+        # `$(SONAME)`, i.e. `libluajit.so`, which does not exist here, so the
+        # staging directory ends up without any library at all.
+        # Our WIN32 link flags expect `-l:lua51.dll`, so stage it as-is.
+        append_install_commands(INSTALL_CMD
+            ${SOURCE_DIR}/src/lua51.dll
+            ${SOURCE_DIR}/src/luajit.exe
+            ${SOURCE_DIR}/src/libluajit-5.1.dll.a
+            DESTINATION ${STAGING_DIR}/bin)
+        append_install_commands(INSTALL_CMD
+            ${STAGING_DIR}/bin/lua51.dll
+            DESTINATION ${OUTPUT_DIR}/libs)
+    else()
+        append_shared_lib_install_commands(INSTALL_CMD luajit)
+    endif()
 else()
     # Prevent LUA modules from linking with the LuaJIT library.
     list(APPEND INSTALL_CMD COMMAND ${ISED} "s|-l\${libname}||" ${STAGING_DIR}/lib/pkgconfig/luajit.pc)

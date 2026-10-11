@@ -1,0 +1,44 @@
+From: KOReader <https://github.com/koreader/koreader-base>
+Subject: [PATCH] willuslib/ansi: drop the Win32 fast path in avprintf()
+
+`trim the fat` (#50) disabled the ANSI parsing machinery (`ansi_on`,
+`ansi_buffer`, `ansi_parse`, `ansi_code`), but only guarded the POSIX side
+of `avprintf()` with `#if 0`. The `#ifdef WIN32` fast path kept calling
+`ansi_parse()`/`ansi_buffer`, so any Windows build fails to compile
+(MinGW predefines `WIN32`):
+
+    willuslib/ansi.c:330:25: error: 'ansi_buffer' undeclared (first use in this function)
+    willuslib/ansi.c:58:13: warning: 'ansi_parse' used but never defined
+
+As the ANSI parsing code is gone, so is the point of that path: always
+fall through to `vfprintf()`.
+
+--- a/willuslib/ansi.c
++++ b/willuslib/ansi.c
+@@ -324,25 +324,7 @@ int avprintf(FILE *f,const char *fmt,va_list args)
+     {
+     int     status;
+ 
+-#ifdef WIN32
+-    if (wsys_win32_api())
+-        {
+-        status=vsprintf(ansi_buffer,fmt,args);
+-        ansi_parse(f,ansi_buffer);
+-        }
+-    else
+-#endif
+-        {
+-#if 0
+-        if (!ansi_on)
+-            {
+-            status=vsprintf(ansi_buffer,fmt,args);
+-            ansi_parse(f,ansi_buffer);
+-            }
+-        else
+-#endif
+-            status=vfprintf(f,fmt,args);
+-        }
++    status=vfprintf(f,fmt,args);
+     return(status);
+     }
+ 

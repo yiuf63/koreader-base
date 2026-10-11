@@ -1,0 +1,402 @@
+diff --git a/crengine/crengine/qimagescale/qimagescale.cpp b/crengine/crengine/qimagescale/qimagescale.cpp
+index 4bc3a5e3..d4afc317 100644
+--- a/crengine/crengine/qimagescale/qimagescale.cpp
++++ b/crengine/crengine/qimagescale/qimagescale.cpp
+@@ -769,7 +769,9 @@ unsigned char* qSmoothScaleImage(const unsigned char* __restrict src, int sw, in
+         return buffer;
+ 
+     // SSE/NEON friendly alignment, just in case...
+-#if defined(__ANDROID__) && __ANDROID_API__ < 17
++    // NOTE: Windows has no posix_memalign; the plain malloc path is good
++    //       enough there (see the Android branch below).
++#if defined(_WIN32) || (defined(__ANDROID__) && __ANDROID_API__ < 17)
+     buffer = (unsigned char* __restrict) malloc(dw * dh * 4);
+     if (buffer == nullptr) {
+         std::cerr << "qSmoothScaleImage: out of memory, returning null!" << std::endl;
+diff --git a/crengine/crengine/src/lvdrawbuf.cpp b/crengine/crengine/src/lvdrawbuf.cpp
+index 3b7fef89..00ddb0d3 100644
+--- a/crengine/crengine/src/lvdrawbuf.cpp
++++ b/crengine/crengine/src/lvdrawbuf.cpp
+@@ -3251,6 +3251,13 @@ void LVColorDrawBuf::DrawRescaled(const LVDrawBuf * __restrict src, int x, int y
+ lUInt8 * LVColorDrawBuf::GetScanLine( int y ) const
+ {
+ #if !defined(__SYMBIAN32__) && defined(_WIN32) && !defined(QT_GL)
++    // GDI's DIB sections are stored bottom-up, which is what the flip below
++    // accounts for. That only applies to the buffer we allocate ourselves
++    // through `CreateDIBSection`; a buffer handed to us from the outside (see
++    // the `externalBuffer` constructor) follows the caller's own layout, which
++    // is top-down here (KOReader's blitbuffers are).
++    if ( !_ownData )
++        return _data + _rowsize * y;
+     return _data + _rowsize * (_dy-1-y);
+ #else
+     return _data + _rowsize * y;
+diff --git a/crengine/crengine/src/lvstream.cpp b/crengine/crengine/src/lvstream.cpp
+index 00bfa702..92ad864c 100644
+--- a/crengine/crengine/src/lvstream.cpp
++++ b/crengine/crengine/src/lvstream.cpp
+@@ -46,6 +46,7 @@
+ extern "C" {
+ #include <windows.h>
+ }
++#include "lvstring_win32_compat.h"
+ #else
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -600,7 +601,7 @@ public:
+ 		);
+ 		if ( m_hMap==NULL ) {
+ 			DWORD err = GetLastError();
+-            CRLog::error( "LVFileMappedStream::Map() -- Cannot map file to memory, err=%08x, hFile=%08x", err, (lUInt32)m_hFile );
++            CRLog::error( "LVFileMappedStream::Map() -- Cannot map file to memory, err=%08x, hFile=%08x", err, (uintptr_t)m_hFile );
+             return error();
+ 		}
+ 		m_map = (lUInt8*) MapViewOfFile(
+@@ -756,7 +757,12 @@ public:
+             crFatalError();
+             break;
+         }
+-        m_hFile = CreateFileW( fname.c_str(), m, s, NULL, c, FILE_ATTRIBUTE_NORMAL, NULL);
++        {
++            wchar_t *_wb; int _wl;
++            lString32_to_LPCWSTR_free(fname, &_wb, &_wl);
++            m_hFile = CreateFileW( _wb, m, s, NULL, c, FILE_ATTRIBUTE_NORMAL, NULL);
++            free(_wb);
++        }
+         if (m_hFile == INVALID_HANDLE_VALUE || !m_hFile) {
+ 			// unicode not implemented?
+ 			lUInt32 err = GetLastError();
+@@ -1323,7 +1329,12 @@ public:
+             crFatalError();
+             break;
+         }
+-        m_hFile = CreateFileW( fname.c_str(), m, s, NULL, c, FILE_ATTRIBUTE_NORMAL, NULL);
++        {
++            wchar_t *_wb; int _wl;
++            lString32_to_LPCWSTR_free(fname, &_wb, &_wl);
++            m_hFile = CreateFileW( _wb, m, s, NULL, c, FILE_ATTRIBUTE_NORMAL, NULL);
++            free(_wb);
++        }
+         if (m_hFile == INVALID_HANDLE_VALUE || !m_hFile) {
+          // unicode not implemented?
+             lUInt32 err = GetLastError();
+@@ -1611,7 +1622,10 @@ public:
+         WIN32_FIND_DATAW data = { 0 };
+         WIN32_FIND_DATAA dataa = { 0 };
+         //lString8 bs = DOMString(path).ToAnsiString();
+-        HANDLE hFind = FindFirstFileW(fn.c_str(), &data);
++        wchar_t *_fwb; int _fwl;
++        lString32_to_LPCWSTR_free(fn, &_fwb, &_fwl);
++        HANDLE hFind = FindFirstFileW(_fwb, &data);
++        free(_fwb);
+         bool unicode=true;
+         if (hFind == INVALID_HANDLE_VALUE || !hFind) {
+             lUInt32 err=GetLastError();
+@@ -1641,19 +1655,26 @@ public:
+ 
+                 if ( (dwAttrs & FILE_ATTRIBUTE_DIRECTORY) ) {
+                     // directory
+-                    if (!lStr_cmp(pfn, L"..") || !lStr_cmp(pfn, L".")) {
++                    lString32 pfn32 = wchar_to_char32(pfn, -1);
++                    lString32 dotdot;
++                    dotdot.append(1, '.');
++                    dotdot.append(1, '.');
++                    lString32 dot;
++                    dot.append(1, '.');
++                    if (!lStr_cmp(pfn32.c_str(), dotdot.c_str()) || !lStr_cmp(pfn32.c_str(), dot.c_str())) {
+                         // .. or .
+                     } else {
+                         // normal directory
+                         LVDirectoryContainerItemInfo * item = new LVDirectoryContainerItemInfo;
+-                        item->m_name = pfn;
++                        item->m_name = pfn32;
+                         item->m_is_container = true;
+                         dir->Add(item);
+                     }
+                 } else {
+                     // file
++                    lString32 pfn32 = wchar_to_char32(pfn, -1);
+                     LVDirectoryContainerItemInfo * item = new LVDirectoryContainerItemInfo;
+-                    item->m_name = pfn;
++                    item->m_name = pfn32;
+                     item->m_size = data.nFileSizeLow;
+                     item->m_flags = data.dwFileAttributes;
+                     dir->Add(item);
+@@ -4097,7 +4118,13 @@ bool LVCreateDirectory( lString32 path )
+             return false;
+         }
+ #ifdef _WIN32
+-        return CreateDirectoryW( path.c_str(), NULL )!=0;
++        {
++            wchar_t *_wb; int _wl;
++            lString32_to_LPCWSTR_free(path, &_wb, &_wl);
++            bool result = CreateDirectoryW( _wb, NULL )!=0;
++            free(_wb);
++            return result;
++        }
+ #else
+         //LVRemovePathDelimiter( path );
+         lString8 path8 = UnicodeToUtf8( path );
+@@ -4140,7 +4167,13 @@ LVStreamRef LVMapFileStream( const lChar32 * pathname, lvopen_mode_t mode, lvsiz
+ bool LVDeleteFile( lString32 filename )
+ {
+ #ifdef _WIN32
+-    return DeleteFileW( filename.c_str() ) ? true : false;
++    {
++        wchar_t *_wb; int _wl;
++        lString32_to_LPCWSTR_free(filename, &_wb, &_wl);
++        bool result = DeleteFileW( _wb ) ? true : false;
++        free(_wb);
++        return result;
++    }
+ #else
+     if ( unlink( UnicodeToUtf8( filename ).c_str() ) )
+         return false;
+@@ -4157,7 +4190,15 @@ bool LVRenameFile(lString32 oldname, lString32 newname) {
+ bool LVRenameFile(lString8 oldname, lString8 newname) {
+ #ifdef _WIN32
+     CRLog::trace("Renaming %s to %s", oldname.c_str(), newname.c_str());
+-    bool res = MoveFileW(Utf8ToUnicode(oldname).c_str(), Utf8ToUnicode(newname).c_str()) != 0;
++    lString32 oldname32 = Utf8ToUnicode(oldname);
++    lString32 newname32 = Utf8ToUnicode(newname);
++    wchar_t *_owb; int _owl;
++    wchar_t *_nwb; int _nwl;
++    lString32_to_LPCWSTR_free(oldname32, &_owb, &_owl);
++    lString32_to_LPCWSTR_free(newname32, &_nwb, &_nwl);
++    bool res = MoveFileW(_owb, _nwb) != 0;
++    free(_owb);
++    free(_nwb);
+     if (!res) {
+         CRLog::error("Renaming result: %s for renaming of %s to %s", res ? "success" : "failed", oldname.c_str(), newname.c_str());
+         CRLog::error("Last Error: %d", GetLastError());
+@@ -4176,7 +4217,13 @@ bool LVDeleteFile( lString8 filename ) {
+ /// delete directory, return true if directory is found and successfully deleted
+ bool LVDeleteDirectory( lString32 filename ) {
+ #ifdef _WIN32
+-    return RemoveDirectoryW( filename.c_str() ) ? true : false;
++    {
++        wchar_t *_wb; int _wl;
++        lString32_to_LPCWSTR_free(filename, &_wb, &_wl);
++        bool result = RemoveDirectoryW( _wb ) ? true : false;
++        free(_wb);
++        return result;
++    }
+ #else
+     if ( rmdir( UnicodeToUtf8( filename ).c_str() ) )
+         return false;
+diff --git a/crengine/crengine/src/lvstring.cpp b/crengine/crengine/src/lvstring.cpp
+index c98bad22..2eb94277 100644
+--- a/crengine/crengine/src/lvstring.cpp
++++ b/crengine/crengine/src/lvstring.cpp
+@@ -3285,23 +3285,57 @@ lString32 ByteToUnicode( const lString8 & str, const lChar32 * table )
+ 
+ #if !defined(__SYMBIAN32__) && defined(_WIN32)
+ 
++static int char32_to_wchar(const lString32 &str, wchar_t *wbuf, int maxchars) {
++    int n = 0;
++    for (int i = 0; i < str.length() && n < maxchars; i++) {
++        char32_t c = str[i];
++        if (c < 0x10000) {
++            wbuf[n++] = (wchar_t)c;
++        } else if (n + 1 < maxchars) {
++            c -= 0x10000;
++            wbuf[n++] = (wchar_t)(0xD800 + (c >> 10));
++            wbuf[n++] = (wchar_t)(0xDC00 + (c & 0x3FF));
++        }
++    }
++    return n;
++}
++
++static lString32 wchar_to_char32(const wchar_t *wbuf, int len) {
++    lString32 result;
++    result.reserve(len);
++    for (int i = 0; i < len; i++) {
++        wchar_t wc = wbuf[i];
++        if (wc >= 0xD800 && wc <= 0xDBFF && i + 1 < len) {
++            wchar_t wc2 = wbuf[i + 1];
++            if (wc2 >= 0xDC00 && wc2 <= 0xDFFF) {
++                result += (char32_t)(((wc - 0xD800) << 10) + (wc2 - 0xDC00) + 0x10000);
++                i++;
++                continue;
++            }
++        }
++        result += (char32_t)wc;
++    }
++    return result;
++}
++
+ lString8 UnicodeToLocal( const lString32 & str )
+ {
+    lString8 dst;
+    if (str.empty())
+       return dst;
++   int wlen = str.length() * 2 + 1;
++   wchar_t *wbuf = (wchar_t *)malloc(wlen * sizeof(wchar_t));
++   if (!wbuf) return dst;
++   int n = char32_to_wchar(str, wbuf, wlen);
+    CHAR def_char = '?';
+    BOOL usedDefChar = FALSE;
+    int len = WideCharToMultiByte(
+       CP_ACP,
+       WC_COMPOSITECHECK | WC_DISCARDNS
+        | WC_SEPCHARS | WC_DEFAULTCHAR,
+-      str.c_str(),
+-      str.length(),
+-      NULL,
+-      0,
+-      &def_char,
+-      &usedDefChar
++      wbuf, n,
++      NULL, 0,
++      &def_char, &usedDefChar
+       );
+    if (len)
+    {
+@@ -3310,14 +3344,12 @@ lString8 UnicodeToLocal( const lString32 & str )
+          CP_ACP,
+          WC_COMPOSITECHECK | WC_DISCARDNS
+           | WC_SEPCHARS | WC_DEFAULTCHAR,
+-         str.c_str(),
+-         str.length(),
+-         dst.modify(),
+-         len,
+-         &def_char,
+-         &usedDefChar
++         wbuf, n,
++         dst.modify(), len,
++         &def_char, &usedDefChar
+          );
+    }
++   free(wbuf);
+    return dst;
+ }
+ 
+@@ -3327,24 +3359,21 @@ lString32 LocalToUnicode( const lString8 & str )
+    if (str.empty())
+       return dst;
+    int len = MultiByteToWideChar(
+-      CP_ACP,
+-      0,
+-      str.c_str(),
+-      str.length(),
+-      NULL,
+-      0
++      CP_ACP, 0,
++      str.c_str(), (int)str.length(),
++      NULL, 0
+       );
+    if (len)
+    {
+-      dst.insert(0, len, ' ');
++      wchar_t *wbuf = (wchar_t *)malloc(len * sizeof(wchar_t));
++      if (!wbuf) return dst;
+       MultiByteToWideChar(
+-         CP_ACP,
+-         0,
+-         str.c_str(),
+-         str.length(),
+-         dst.modify(),
+-         len
++         CP_ACP, 0,
++         str.c_str(), (int)str.length(),
++         wbuf, len
+          );
++      dst = wchar_to_char32(wbuf, len);
++      free(wbuf);
+    }
+    return dst;
+ }
+diff --git a/crengine/crengine/src/lvstring_win32_compat.h b/crengine/crengine/src/lvstring_win32_compat.h
+new file mode 100644
+index 00000000..a3358876
+--- /dev/null
++++ b/crengine/crengine/src/lvstring_win32_compat.h
+@@ -0,0 +1,62 @@
++#ifndef LVSTRING_WIN32_COMPAT_H
++#define LVSTRING_WIN32_COMPAT_H
++
++#if !defined(__SYMBIAN32__) && defined(_WIN32)
++#include <windows.h>
++#include "lvstring.h"
++
++static inline int char32_to_wchar(const lString32 &str, wchar_t *wbuf, int maxchars) {
++    int n = 0;
++    for (int i = 0; i < str.length() && n < maxchars; i++) {
++        char32_t c = str[i];
++        if (c < 0x10000) {
++            wbuf[n++] = (wchar_t)c;
++        } else if (n + 1 < maxchars) {
++            c -= 0x10000;
++            wbuf[n++] = (wchar_t)(0xD800 + (c >> 10));
++            wbuf[n++] = (wchar_t)(0xDC00 + (c & 0x3FF));
++        }
++    }
++    return n;
++}
++
++static inline lString32 wchar_to_char32(const wchar_t *wbuf, int len) {
++    lString32 result;
++    result.reserve(len);
++    for (int i = 0; i < len; i++) {
++        wchar_t wc = wbuf[i];
++        if (wc >= 0xD800 && wc <= 0xDBFF && i + 1 < len) {
++            wchar_t wc2 = wbuf[i + 1];
++            if (wc2 >= 0xDC00 && wc2 <= 0xDFFF) {
++                result += (char32_t)(((wc - 0xD800) << 10) + (wc2 - 0xDC00) + 0x10000);
++                i++;
++                continue;
++            }
++        }
++        result += (char32_t)wc;
++    }
++    return result;
++}
++
++static inline void lString32_to_LPCWSTR_free(const lString32 &str, wchar_t **out, int *outlen) {
++    int wlen = str.length() * 2 + 1;
++    wchar_t *wbuf = (wchar_t *)malloc(wlen * sizeof(wchar_t));
++    if (wbuf) {
++        *outlen = char32_to_wchar(str, wbuf, wlen);
++        wbuf[*outlen] = 0;
++    } else {
++        *outlen = 0;
++        wbuf = NULL;
++    }
++    *out = wbuf;
++}
++
++#define L32_TO_W(str, wvar, wlenvar) \
++    wchar_t *_wbuf_##wvar; int _wlen_##wvar; \
++    lString32_to_LPCWSTR_free(str, &_wbuf_##wvar, &_wlen_##wvar); \
++    wchar_t *wvar = _wbuf_##wvar
++
++#define L32_TO_W_FREE(wvar) free(_wbuf_##wvar)
++
++#endif
++#endif
+diff --git a/crengine/crengine/src/lvstsheet.cpp b/crengine/crengine/src/lvstsheet.cpp
+index 5d094ba6..821a5b2b 100644
+--- a/crengine/crengine/src/lvstsheet.cpp
++++ b/crengine/crengine/src/lvstsheet.cpp
+@@ -4071,7 +4071,10 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
+                         }
+                         buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                         buf<<(lUInt32)initial_letter.type;
+-                        buf<<initial_letter.value;
++                        // NOTE: on LLP64 platforms (Windows), `lUInt32` is
++                        //       `unsigned long`, which makes the `int` overload
++                        //       ambiguous, so be explicit.
++                        buf<<(lInt32)initial_letter.value;
+                         break;
+                     }
+                     css_length_t size_num;
+@@ -4152,7 +4155,8 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
+                         }
+                         buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                         buf<<(lUInt32)initial_letter.type;
+-                        buf<<initial_letter.value;
++                        // See above about the ambiguity on LLP64 platforms.
++                        buf<<(lInt32)initial_letter.value;
+                     }
+                     else {
+                         decl = orig_pos;

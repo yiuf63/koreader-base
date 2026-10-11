@@ -22,7 +22,7 @@ local android = ffi.os == "Linux" and os.getenv("IS_ANDROID") and require("andro
 local log = ffi.log or android and android.LOGI or print
 
 local monolibtic = {
-    path = (android and android.nativeLibraryDir or "libs") .. "/libkoreader-monolibtic." .. (ffi.os == "OSX" and "dylib" or "so"),
+    path = (android and android.nativeLibraryDir or "libs") .. "/libkoreader-monolibtic." .. (({ OSX = "dylib", Windows = "dll" })[ffi.os] or "so"),
     redirects = {
         ["archive"]    = true,
         ["blitbuffer"] = true,
@@ -104,6 +104,18 @@ local ffi_load = ffi.load
 
 ffi.load = function(lib, global)
     log("ffi.load: " .. lib .. (global and " (RTLD_GLOBAL)" or ""))
+    -- On Windows, `LoadLibrary` only searches the application directory and
+    -- `PATH`, so a bare name (e.g. `ffi.load("sqlite3")`) would miss our
+    -- libraries: resolve it against `lib_search_path` first. The DLL's own
+    -- dependencies resolve fine, as `win_loader.c` puts `libs/` in the DLL
+    -- search path.
+    if ffi.os == "Windows" and not lib:find("[/\\]") then
+        local path = package.searchpath(libname(lib), lib_search_path, "/", "/")
+        if path then
+            log("ffi.load: resolved to " .. path)
+            lib = path
+        end
+    end
     return ffi_load(lib, global)
 end
 
@@ -163,6 +175,13 @@ elseif ffi.os == "OSX" then
     lib_basic_format = "lib%s.dylib"
     -- Versioned: libz.1.dylib
     lib_version_format = "lib%s.%s.dylib"
+elseif ffi.os == "Windows" then
+    lib_search_path = "libs/?"
+    -- Unversioned: libz.dll
+    lib_basic_format = "lib%s.dll"
+    -- Versioned: libz-1.dll
+    -- (matches `set_libname`'s WIN32 branch in koreader_thirdparty_common.cmake)
+    lib_version_format = "lib%s-%s.dll"
 end
 
 log("lib_search_path: " .. lib_search_path)

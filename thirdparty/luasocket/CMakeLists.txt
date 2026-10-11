@@ -45,13 +45,17 @@ append_install_commands(INSTALL_CMD DESTINATION ${STAGING_DIR}/include/luasocket
     ${SOURCE_DIR}/src/socket.h
     ${SOURCE_DIR}/src/timeout.h
     ${SOURCE_DIR}/src/usocket.h
+    # NOTE: `socket.h` includes `wsocket.h` instead on Windows, and luasec
+    #       includes `socket.h`, so it needs to be there too.
+    ${SOURCE_DIR}/src/wsocket.h
 )
 append_install_commands(INSTALL_CMD libluasocket.a DESTINATION ${STAGING_DIR}/lib)
 if(MONOLIBTIC)
     append_install_commands(INSTALL_CMD mcore.a score.a DESTINATION ${STAGING_DIR}/lib)
 else()
-    append_binary_install_command(INSTALL_CMD score.so DESTINATION common/socket)
-    append_binary_install_command(INSTALL_CMD mcore.so DESTINATION common/mime)
+    # NOTE: not always `.so` (i.e. `.dll` on Windows).
+    append_binary_install_command(INSTALL_CMD score${LIB_EXT} DESTINATION common/socket)
+    append_binary_install_command(INSTALL_CMD mcore${LIB_EXT} DESTINATION common/mime)
 endif()
 
 external_project(

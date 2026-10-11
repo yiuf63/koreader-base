@@ -10,7 +10,12 @@ list(APPEND BUILD_CMD COMMAND ninja)
 if(MONOLIBTIC)
     append_install_commands(INSTALL_CMD lpeg.a DESTINATION ${STAGING_DIR}/lib)
 else()
-    append_binary_install_command(INSTALL_CMD lpeg.so DESTINATION common)
+    # NOTE: the module's extension follows the target platform (`.so` /
+    #       `.dylib` / `.dll`), so it cannot be hardcoded. It also lives in
+    #       `common/` rather than `libs/`, as that is where the frontend looks
+    #       for Lua modules (`package.cpath`).
+    get_filename_component(LPEG_LIB ${BINARY_DIR}/lpeg${LIB_EXT} ABSOLUTE)
+    append_binary_install_command(INSTALL_CMD ${LPEG_LIB} DESTINATION common)
 endif()
 append_install_commands(INSTALL_CMD ${SOURCE_DIR}/re.lua DESTINATION common)
 

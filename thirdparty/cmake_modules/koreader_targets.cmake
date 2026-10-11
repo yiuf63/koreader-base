@@ -96,7 +96,7 @@ declare_koreader_target(
     koreader-cre TYPE monolibtic
     DEPENDS crengine::crengine luajit::luajit
     SOURCES cre.cpp
-    SUFFIX .so
+    SUFFIX ${LIB_EXT}
     VISIBILITY hidden
 )
 
@@ -105,9 +105,19 @@ declare_koreader_target(
     koreader-djvu TYPE monolibtic
     DEPENDS blitbuffer djvulibre::djvulibre libk2pdfopt::k2pdfopt luajit::luajit
     SOURCES djvu.c
-    SUFFIX .so
+    SUFFIX ${LIB_EXT}
     VISIBILITY hidden
 )
+function(setup_koreader_djvu)
+    if(WIN32)
+        # NOTE: djvulibre is built as a static library (see its spec), but its
+        #       headers default to `__declspec(dllimport)` on Windows, which
+        #       makes every `ddjvu_*` / `miniexp_*` reference unresolvable.
+        #       Defining the macros empty is the documented way to consume the
+        #       static build.
+        target_compile_definitions(koreader-djvu PRIVATE DDJVUAPI= MINILISPAPI=)
+    endif()
+endfunction()
 
 # kodeader-input
 set(DEPENDS luajit::luajit)
@@ -142,7 +152,7 @@ declare_koreader_target(
     koreader-nnsvg TYPE monolibtic
     DEPENDS luajit::luajit nanosvg::nanosvg
     SOURCES nnsvg.c
-    SUFFIX .so
+    SUFFIX ${LIB_EXT}
     VISIBILITY hidden
 )
 
@@ -151,7 +161,7 @@ declare_koreader_target(
     koreader-xtext TYPE monolibtic
     DEPENDS freetype2::freetype fribidi::fribidi harfbuzz::harfbuzz luajit::luajit libunibreak::unibreak
     SOURCES xtext.cpp
-    SUFFIX .so
+    SUFFIX ${LIB_EXT}
     VISIBILITY hidden
 )
 
@@ -181,20 +191,32 @@ declare_koreader_target(
 )
 
 # koreader
+# NOTE: `osx_loader` uses Mach-O specific APIs, so it is macOS-only; Windows has
+#       its own entry point (`win_loader_exe` below). Both are named `koreader`
+#       when built, hence the mutually exclusive conditions (CMake's build graph
+#       cannot have two targets producing the same file).
 if(APPLE)
-    set(EXCLUDE_FROM_ALL)
-else()
-    set(EXCLUDE_FROM_ALL EXCLUDE_FROM_ALL)
+    declare_koreader_target(
+        osx_loader TYPE executable
+        DEPENDS luajit::luajit
+        SOURCES osx_loader.c
+    )
+    function(setup_osx_loader)
+        set_target_properties(osx_loader PROPERTIES OUTPUT_NAME koreader)
+    endfunction()
 endif()
-declare_koreader_target(
-    osx_loader TYPE executable
-    DEPENDS luajit::luajit
-    ${EXCLUDE_FROM_ALL}
-    SOURCES osx_loader.c
-)
-function(setup_osx_loader)
-    set_target_properties(osx_loader PROPERTIES OUTPUT_NAME koreader)
-endfunction()
+
+# win_loader
+if(WIN32)
+    declare_koreader_target(
+        win_loader_exe TYPE executable
+        DEPENDS luajit::luajit
+        SOURCES win_loader.c
+    )
+    function(setup_win_loader_exe)
+        set_target_properties(win_loader_exe PROPERTIES OUTPUT_NAME koreader)
+    endfunction()
+endif()
 
 # inkview-compat
 if(POCKETBOOK)

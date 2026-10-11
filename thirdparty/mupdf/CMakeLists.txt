@@ -19,6 +19,9 @@ list(APPEND PATCH_FILES
     relink_on_xlibs_change.patch
     # Fix symbols visiblity.
     visibility.patch
+    # The Windows-only include path for libarchive headers is wrong (they are
+    # installed flat, like everywhere else).
+    win32_libarchive_headers.patch
 )
 
 # Remove unnecessary vendored thirdparty libraries.
@@ -43,6 +46,13 @@ string(TOLOWER ${CMAKE_BUILD_TYPE} MUPDF_BUILD_TYPE)
 
 if(WIN32)
     set(OS)
+    # NOTE: MinGW defines the MSVC compatibility macros (`_M_X64` &
+    #       friends), which `fitz/system.h` uses to enable `ARCH_HAS_SSE`.
+    #       That is fine for MSVC (it emits SSE4.1 intrinsics without extra
+    #       flags), but GCC needs `-msse4.1`, which upstream never passes, so
+    #       `deskew.c`/`skew.c` fail to build. Keep the C fallback paths, as
+    #       every GCC/clang target already does (only MSVC ever sets it).
+    string(APPEND XCFLAGS " -DARCH_HAS_SSE=0")
 else()
     set(OS Other)
 endif()

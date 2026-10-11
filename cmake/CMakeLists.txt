@@ -27,7 +27,12 @@ function(declare_project DIR)
         set(BASE_DIR ${CMAKE_CURRENT_BINARY_DIR}/${NAME})
     endif()
     get_filename_component(DIR ${DIR} ABSOLUTE BASE_DIR ${CMAKE_SOURCE_DIR}/..)
-    if(NOT _SOURCE_DIR)
+    if(_SOURCE_DIR)
+        # The source tree is provided by the caller (a git submodule, say)
+        # rather than fetched by a download step, which patches have to be aware
+        # of.
+        set(${NAME}_EXPLICIT_SOURCE_DIR TRUE PARENT_SCOPE)
+    else()
         set(_SOURCE_DIR ${BASE_DIR}/source)
     endif()
     get_filename_component(_SOURCE_DIR ${_SOURCE_DIR} ABSOLUTE BASE_DIR ${CMAKE_SOURCE_DIR}/..)
@@ -78,6 +83,9 @@ function(setup_project NAME)
         set(DOWNLOAD_DIR ${${NAME}_DOWNLOAD_DIR})
         set(SOURCE_DIR ${${NAME}_SOURCE_DIR})
         set(BINARY_DIR ${${NAME}_BINARY_DIR})
+        # Whether the source tree is provided by the caller (a git submodule,
+        # say) instead of being fetched by a download step.
+        set(EXPLICIT_SOURCE_DIR ${${NAME}_EXPLICIT_SOURCE_DIR})
         # Add project directory.
         add_subdirectory(${${NAME}_CMAKE_SOURCE_DIR} ${${NAME}_CMAKE_BINARY_DIR} ${${NAME}_EXCLUDE_FROM_ALL})
         # Update dependencies.
@@ -250,7 +258,14 @@ endif()
 declare_project(thirdparty/czmq DEPENDS libzmq ${EXCLUDE_FROM_ALL})
 
 # djvulibre
-declare_project(thirdparty/djvulibre DEPENDS libjpeg-turbo EXCLUDE_FROM_ALL)
+set(DEPENDS libjpeg-turbo)
+if(NOT HAS_ICONV)
+    # NOTE: without a system iconv, `libdjvu`'s `GUnicode` uses miniconv, so the
+    #       static archive needs to be linked against it (on glibc, those
+    #       symbols come from libc and nothing extra is needed).
+    list(APPEND DEPENDS miniconv)
+endif()
+declare_project(thirdparty/djvulibre DEPENDS ${DEPENDS} EXCLUDE_FROM_ALL)
 
 # dkjson
 declare_project(thirdparty/dkjson)
@@ -385,7 +400,14 @@ add_subdirectory(${THIRDPARTY_DIR}/lua-ljsqlite3 ${OUTPUT_DIR}/thirdparty/lua-lj
 declare_project(thirdparty/lua-rapidjson DEPENDS luajit)
 
 # lua-Spore
-declare_project(thirdparty/lua-Spore)
+# NOTE: only used by the Progress Sync (kosync) plugin, and only distributed
+#       from framagit.org; keep it out of the default Windows build until that
+#       is reachable again (build it explicitly with `make lua-Spore`).
+if(WIN32)
+    declare_project(thirdparty/lua-Spore EXCLUDE_FROM_ALL)
+else()
+    declare_project(thirdparty/lua-Spore)
+endif()
 
 # luajit
 declare_project(thirdparty/luajit)
@@ -443,7 +465,15 @@ declare_project(thirdparty/popen-noshell EXCLUDE_FROM_ALL)
 declare_project(thirdparty/proxy-libintl EXCLUDE_FROM_ALL)
 
 # sdcv
-declare_project(thirdparty/sdcv DEPENDS glib zlib)
+# NOTE: sdcv pulls in glib, by far the heaviest and most Unix-centric
+# dependency in the tree, which is not wired up for MinGW yet. Skip the
+# StarDict support there for now (EXCLUDE_FROM_ALL keeps it buildable on
+# demand, and leaves every other target untouched).
+if(WIN32)
+    declare_project(thirdparty/sdcv DEPENDS glib zlib EXCLUDE_FROM_ALL)
+else()
+    declare_project(thirdparty/sdcv DEPENDS glib zlib)
+endif()
 
 # sdl3
 if(USE_SDL STREQUAL "builtin")

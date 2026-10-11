@@ -1,0 +1,41 @@
+From: KOReader <https://github.com/koreader/koreader-base>
+Subject: [PATCH] deps: make the WinCrypt/LibreSSL include dance work on Windows
+
+LibreSSL's `ossl_typ.h` undefines the `X509_NAME` & co macros that
+`wincrypt.h` defines, but only when `__WINCRYPT_H__` is already defined by
+the time it is processed. `openssl/ssl.h` only reaches `winsock2.h` ->
+`windows.h` through `dtls1.h`, i.e. too late: the clashing macros are
+already in effect while `x509v3.h` is parsed, and the build fails on Windows:
+
+    openssl/x509v3.h:184:17: error: expected specifier-qualifier-list before '(' token
+      184 |                 X509_NAME *directoryName;
+
+Include the Win32 headers first on Windows, so LibreSSL can clean up after
+them.
+
+--- a/deps/turbo_ffi_wrap.h
++++ b/deps/turbo_ffi_wrap.h
+@@ -19,6 +19,10 @@ limitations under the License. */
+ #include <stdlib.h>
+ 
+ #ifndef TURBO_NO_SSL
++#ifdef _WIN32
++#include <winsock2.h>
++#include <windows.h>
++#endif
+ #include <openssl/ssl.h>
+ #endif
+ #include <stdbool.h>
+--- a/deps/turbo_ffi_wrap.c
++++ b/deps/turbo_ffi_wrap.c
+@@ -32,6 +32,10 @@ SOFTWARE."			*/
+ #include "turbo_ffi_wrap.h"
+ 
+ #ifndef TURBO_NO_SSL
++#ifdef _WIN32
++#include <winsock2.h>
++#include <windows.h>
++#endif
+ #include <openssl/x509v3.h>
+ #include <openssl/ssl.h>
+ #endif

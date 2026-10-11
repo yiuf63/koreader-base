@@ -13,7 +13,9 @@ list(APPEND BUILD_CMD COMMAND ninja)
 if(MONOLIBTIC)
     append_install_commands(INSTALL_CMD rapidjson.a DESTINATION ${STAGING_DIR}/lib)
 else()
-    append_binary_install_command(INSTALL_CMD rapidjson.so DESTINATION common)
+    # NOTE: the module's extension follows the target platform
+    #       (`.so` / `.dylib` / `.dll`), so it cannot be hardcoded.
+    append_binary_install_command(INSTALL_CMD rapidjson${LIB_EXT} DESTINATION common)
 endif()
 
 external_project(

@@ -200,6 +200,8 @@ int sprintf(char *, const char *, ...);
 int fprintf(FILE *restrict, const char *restrict, ...);
 int fputc(int, FILE *);
 int fileno(FILE *);
+int _fileno(FILE *);
+int _commit(int);
 char *strerror(int);
 int fsync(int);
 int fdatasync(int);

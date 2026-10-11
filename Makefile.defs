@@ -12,6 +12,9 @@ ifeq ($(CURRENT_OS), Darwin)
   CURRENT_OS := darwin
 else ifeq ($(CURRENT_OS), Linux)
   CURRENT_OS := linux
+else ifneq (,$(findstring MSYS_NT,$(CURRENT_OS)))
+  # MSYS2/MinGW-w64, i.e. building *for* Windows *on* Windows.
+  CURRENT_OS := msys
 else
   $(warning unsupported operating system: $(CURRENT_OS))
 endif
@@ -293,6 +296,16 @@ else
 endif
 SYMLINK += -snfr
 
+# On Windows, MSYS2 emulates `ln -s` by *copying* unless symlink support is
+# requested explicitly. That silently breaks the build tree: the copies under
+# `$(OUTPUT_DIR)` never pick up later edits to `$(KOR_BASE)/ffi` and friends, so
+# the build would keep installing stale Lua modules.
+# Setting `MSYS=winsymlinks:nativestrict` makes `ln -s` create a real symlink
+# (and fail loudly instead of copying if it cannot).
+ifeq ($(CURRENT_OS), msys)
+  export MSYS := winsymlinks:nativestrict
+endif
+
 # set cross-compiler/host CC and CXX
 ifneq (,$(USE_CLANG))
 	ifdef CHOST
@@ -343,7 +356,11 @@ ifdef ANDROID
 else ifdef CHOST
 	STRIP:=$(CHOST)-strip
 	AR:=$(CHOST)-ar
-	LD:=$(CHOST)-ld
+	# NOTE: not every MinGW toolchain ships a prefixed `ld` (MSYS2's mingw-w64
+	#       binutils only provides a plain `ld`). libtool then fails to detect
+	#       GNU ld and falls back to MSVC-style link commands (`-link -dll`),
+	#       which cannot build our DLLs at all.
+	LD:=$(shell command -v $(CHOST)-ld >/dev/null 2>&1 && echo $(CHOST)-ld || echo ld)
 	NM:=$(CHOST)-nm
 	OBJCOPY:=$(CHOST)-objcopy
 	RC:=$(CHOST)-windres
@@ -641,12 +658,15 @@ ifndef DARWIN
   #       (Assuming no LD_LIBRARY_PATH are set, since the search order is basically RPATH -> LD_LIBRARY_PATH -> RUNPATH).
   #       c.f., https://github.com/koreader/koreader-base/pull/1638#issuecomment-1636725691
   #       And https://bugs.launchpad.net/ubuntu/+source/eglibc/+bug/1253638/comments/5 for a nice recap.
-  ifndef ANDROID
+  # NOTE: The RPATH include file is an ELF-only concept; MinGW/PE links
+  #       have no use for it (and GNU ld for PE chokes on it).
+  ifeq (,$(or $(ANDROID),$(WIN32)))
     LDFLAGS += -Wl,@$(abspath $(KOR_BASE)/origin.ldflags)
   endif
   # No code we build should need an executable stack, so disable
   # it explicitly to avoid issues on some systems (e.g. Gentoo).
-  ifndef ANDROID
+  # NOTE: -z is an ELF-only linker option, unsupported by MinGW's ld.
+  ifeq (,$(or $(ANDROID),$(WIN32)))
     LDFLAGS += -Wl,-z,noexecstack
   endif
   # In monolibtic mode on Android, we can statically link the STL.
@@ -667,7 +687,11 @@ ifdef ANDROID
 endif
 
 ifeq ($(TARGET), win32)
-	LDFLAGS+=-Wl,--allow-multiple-definition -static-libgcc
+	# NOTE: unlike a *nix system, Windows has no system-wide C++ runtime, so
+	#       link the MinGW ones (libstdc++, libgcc, winpthread) statically
+	#       instead of shipping a pile of DLLs next to the application (and
+	#       having to keep them in sync with the toolchain).
+	LDFLAGS+=-Wl,--allow-multiple-definition -static-libgcc -static-libstdc++
 endif
 
 # this will create a path named build/arm-none-linux-gnueabi or similar
@@ -729,8 +753,11 @@ ifneq ($(TARGET), win32)
 endif
 
 # Improve reproducibility.
+# NOTE: --build-id is an ELF-only concept, MinGW's ld does not take it.
 ifndef DARWIN
+ifndef WIN32
 LDFLAGS += -Wl,--build-id=none
+endif
 endif
 
 CFLAGS := $(strip $(CFLAGS))
@@ -1017,6 +1044,15 @@ endef
 
 comma:=,
 
+# meson is a native Windows program, so it hands pkg-config Windows-style paths
+# (via PKG_CONFIG_LIBDIR), which the MSYS build of pkg-config cannot resolve.
+# Prefer a native pkg-config there, spelled with a native path.
+ifeq ($(WIN32),1)
+  MESON_PKGCONFIG = $(shell cygpath -m /mingw64/bin/pkg-config.exe 2>/dev/null || echo pkg-config)
+else
+  MESON_PKGCONFIG = pkg-config
+endif
+
 define meson_toolchain
 
 [constants]
@@ -1033,8 +1069,8 @@ cpp = [CCACHE, '$(strip $(REALCXX))']
 # cpp_ld
 ar = '$(strip $(AR))'
 nm = '$(strip $(NM))'
-pkgconfig = 'pkg-config'
-pkg-config = 'pkg-config'
+pkgconfig = '$(MESON_PKGCONFIG)'
+pkg-config = '$(MESON_PKGCONFIG)'
 ranlib = '$(strip $(RANLIB))'
 strip = 'true'
 
@@ -1057,7 +1093,9 @@ else
 MESON_CROSS_TOOLCHAIN = $(CMAKE_DIR)/meson_cross_toolchain.ini
 MESON_HOST_TOOLCHAIN = $(CMAKE_DIR)/meson_host_toolchain.ini
 
-MESON_CROSS_SYSTEM = $(if $(ANDROID),android,linux)
+# NOTE: meson validates host paths against the *host_machine* declared here,
+#       so this must be the actual target OS (Windows included).
+MESON_CROSS_SYSTEM = $(if $(ANDROID),android,$(if $(WIN32),windows,linux))
 ifneq (,$(filter aarch64-%,$(TARGET_MACHINE)))
   MESON_CROSS_CPU_FAMILY = aarch64
 else ifneq (,$(filter arm-% armv7a-%,$(TARGET_MACHINE)))

@@ -22,6 +22,34 @@ require("ffi/linux_input_h")
 
 local SDL = util.loadSDL3()
 
+-- NOTE: Windows has no `clock_gettime` (MinGW's winpthread does not export it,
+--       and neither msvcrt nor ucrtbase do), so provide one on top of the
+--       performance counters, mirroring what `frontend/ui/time.lua` does.
+local clock_gettime
+if ffi.os == "Windows" then
+    ffi.cdef[[
+    typedef long long LARGE_INTEGER;
+    int QueryPerformanceCounter(LARGE_INTEGER *lpPerformanceCount);
+    int QueryPerformanceFrequency(LARGE_INTEGER *lpFrequency);
+    ]]
+    local freq = ffi.new("LARGE_INTEGER[1]")
+    C.QueryPerformanceFrequency(freq)
+    local freq_val = tonumber(freq[0])
+    local start = ffi.new("LARGE_INTEGER[1]")
+    C.QueryPerformanceCounter(start)
+    local start_val = tonumber(start[0])
+    clock_gettime = function(_, ts_ptr)
+        local counter = ffi.new("LARGE_INTEGER[1]")
+        C.QueryPerformanceCounter(counter)
+        local elapsed_us = math.floor((tonumber(counter[0]) - start_val) * 1000000 / freq_val)
+        ts_ptr.tv_sec = math.floor(elapsed_us / 1000000)
+        ts_ptr.tv_nsec = (elapsed_us % 1000000) * 1000
+        return 0
+    end
+else
+    clock_gettime = C.clock_gettime
+end
+
 -- Some features (like SDL_RumbleGamepad) may require a minimum version
 -- of SDL. These helper functions allow us to prevent any issues with calling
 -- undefined symbols.
@@ -204,7 +232,7 @@ local function genEmuEvent(evtype, code, value)
     -- NOTE: SDL timestamps are in ms since application startup, which doesn't tell us anything useful,
     --       so, use synthetic ones in the same timescale as the UI.
     local timespec = ffi.new("struct timespec")
-    C.clock_gettime(C.CLOCK_MONOTONIC_COARSE, timespec)
+    clock_gettime(C.CLOCK_MONOTONIC_COARSE, timespec)
     local timev = {
         sec = tonumber(timespec.tv_sec),
         -- ns to µs

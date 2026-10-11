@@ -35,6 +35,10 @@ list(APPEND CMAKE_ARGS
     # Project options.
     -DBUILD_PROG=FALSE
     -DSTRICT_CONF=TRUE
+    # NOTE: leptonica defaults SW_BUILD to ON on Windows, which makes it try to
+    #       use the "Software Network" package manager (`find_package(SW)`), so
+    #       force it off there, like it is everywhere else.
+    -DSW_BUILD=FALSE
     # Yes please.
     -DENABLE_PNG=TRUE
     -DENABLE_ZLIB=TRUE
@@ -49,6 +53,15 @@ list(APPEND CMAKE_ARGS
 list(APPEND BUILD_CMD COMMAND ninja)
 
 list(APPEND INSTALL_CMD COMMAND ${CMAKE_COMMAND} --install .)
+
+if(WIN32)
+    # NOTE: on Windows, leptonica names its pkg-config file after the build type
+    #       (`lept_Release.pc`), while consumers (and our own builds) look it up
+    #       as `lept`, so provide that name too.
+    list(APPEND INSTALL_CMD COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${STAGING_DIR}/lib/pkgconfig/lept_Release.pc
+        ${STAGING_DIR}/lib/pkgconfig/lept.pc)
+endif()
 
 if(NOT MONOLIBTIC)
     append_shared_lib_install_commands(INSTALL_CMD leptonica VERSION 6)

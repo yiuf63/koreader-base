@@ -103,7 +103,12 @@ extract_archive() { (
     mkdir "${sourcedir}.tmp" || return 1
     oldpwd="${PWD}"
     cd "${sourcedir}.tmp"
-    '@CMAKE_COMMAND@' -E tar xf "${archive}"
+    # NOTE: MSYS/MinGW: `cmake -E tar` cannot create symlinks (Windows requires
+    #       SeCreateSymbolicLinkPrivilege), so it bails out on any archive that
+    #       contains one (e.g. zstd's tests/cli-tests/bin/unzstd). MSYS' bsdtar
+    #       can emulate them via winsymlinks:lnk instead (and, unlike GNU tar,
+    #       also handles zip archives like sqlite's or certifi's wheels).
+    MSYS=winsymlinks:lnk bsdtar -xf "${archive}" || return 1
     case "${archive}" in
         # Luarocks source rock, no root dir.
         *.src.rock) root='' ;;
@@ -128,7 +133,11 @@ apply_patches() { (
     [ $# -ge 1 ] || return 1
     for patch in "$@"; do
         printf '* Applying %s . . .\n' "${patch##*/}"
-        patch -p1 --forward --input="${patch}" || return 1
+        # NOTE: `--ignore-whitespace` keeps this working when the source tree
+        #       and the patch disagree on line endings, which is the norm on
+        #       Windows: git checks files out as CRLF there, while the patches
+        #       are stored with LF.
+        patch -p1 --forward --ignore-whitespace --input="${patch}" || return 1
     done
 ); }
 

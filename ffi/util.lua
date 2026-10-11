@@ -39,7 +39,9 @@ DWORD GetFullPathNameA(
     LPSTR *lpFilePart
 );
 LPTSTR PathFindFileNameA(LPCSTR lpszPath);
-BOOL PathRemoveFileSpec(LPTSTR pszPath);
+/* NOTE: `PathRemoveFileSpec` is a macro (`__MINGW_NAME_AW`); the actual export
+ *       is the ANSI one. */
+BOOL PathRemoveFileSpecA(LPTSTR pszPath);
 UINT GetACP(void);
 int MultiByteToWideChar(
     UINT CodePage,
@@ -62,6 +64,15 @@ int WideCharToMultiByte(
 ]]
 
 local util = {}
+
+-- `PathFindFileNameA` / `PathRemoveFileSpec` live in shlwapi.dll, which is not
+-- part of the default import set (and `ffi.C` only sees what the process has
+-- already loaded), so load it explicitly and resolve those two through it.
+local Win = C
+if ffi.os == "Windows" then
+    local ok, lib = pcall(ffi.load, "shlwapi")
+    if ok then Win = lib end
+end
 
 if ffi.os == "Windows" then
     util.gettime = function()
@@ -170,7 +181,7 @@ end
 if ffi.os == "Windows" then
     function util.basename(path)
         local ptr = ffi.cast("uint8_t *", path)
-        return ffi.string(C.PathFindFileNameA(ptr))
+        return ffi.string(Win.PathFindFileNameA(ptr))
     end
 else
     function util.basename(in_path)
@@ -196,7 +207,7 @@ if ffi.os == "Windows" then
         so we need to make a copy.
         --]]
         local path = ffi.new("char[?]", #in_path + 1, in_path)
-        if C.PathRemoveFileSpec(path) then
+        if Win.PathRemoveFileSpecA(path) then
             return ffi.string(path)
         else
             return path
@@ -581,10 +592,20 @@ function util.fsyncOpenedFile(fd_or_luafile, sync_metadata)
         fileno = fd_or_luafile
     else -- lua file object
         fd_or_luafile:flush() -- flush user-space buffers to system buffers
-        fileno = C.fileno(fd_or_luafile)
+        if ffi.os == "Windows" then
+            -- NOTE: msvcrt spells these `_fileno`/`_commit` (and has no
+            --       `fsync`/`fdatasync` at all).
+            fileno = C._fileno(fd_or_luafile)
+        else
+            fileno = C.fileno(fd_or_luafile)
+        end
     end
     local ret
-    if sync_metadata then
+    if ffi.os == "Windows" then
+        -- `_commit` flushes the file buffers to disk (metadata included, so
+        -- `sync_metadata` has no separate implementation to choose from).
+        ret = C._commit(fileno)
+    elseif sync_metadata then
         ret = C.fsync(fileno) -- sync file data and metadata
     else
         ret = C.fdatasync(fileno) -- sync only file data

@@ -1,9 +1,11 @@
 #ifndef CRSETUP_H_INCLUDED
 #define CRSETUP_H_INCLUDED
 
-/// Yes, even on macOS (Windows is unsupported)…
-#define LINUX 1
-#define _LINUX 1
+/// POSIX-only code paths in crengine are gated on these; macOS still goes
+/// through them, but Windows has its own code (upstream's stock configuration
+/// simply declares Windows unsupported), so leave them unset there.
+#cmakedefine LINUX 1
+#cmakedefine _LINUX 1
 
 /// Compression.
 #define USE_ZLIB                             1

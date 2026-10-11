@@ -22,7 +22,16 @@ function(declare_dependency NAME)
         list(APPEND LIBS ${STAGING_DIR}/lib/lib${SUBDEP}.a)
     endforeach()
     foreach(SUBDEP IN LISTS _SHARED)
-        list(APPEND LIBS ${STAGING_DIR}/lib/lib${SUBDEP}${LIB_EXT})
+        if(WIN32)
+            # NOTE: MinGW puts the *import* library next to the DLL under
+            #       `lib<name>.dll.a`; that, not the DLL itself, is what the
+            #       linker consumes (and it is what ends up in `staging/lib/`,
+            #       where the DLLs themselves are canonicalized and moved to
+            #       `libs/`).
+            list(APPEND LIBS ${STAGING_DIR}/lib/lib${SUBDEP}.dll.a)
+        else()
+            list(APPEND LIBS ${STAGING_DIR}/lib/lib${SUBDEP}${LIB_EXT})
+        endif()
     endforeach()
     list(APPEND LIBS ${_LIBRARIES})
     target_include_directories(${TGT} INTERFACE ${INCS})
@@ -69,10 +78,24 @@ declare_dependency(czmq::czmq MONOLIBTIC czmq zmq LIBRARIES ${LIBRARIES})
 # djvulibre
 set(LIBRARIES m pthread)
 if(NOT (ANDROID AND MONOLIBTIC))
-    list(APPEND LIBRARIES stdc++)
+    if(WIN32)
+        # NOTE: libdjvu is a C++ static library, so its RTTI/exception symbols
+        #       (`__cxxabiv1::*`) have to be resolved when the *consumer* links.
+        #       `-static-libstdc++` does not cover that, and a plain `-lstdc++`
+        #       gets dropped by `--as-needed` (it comes after the archive); be
+        #       explicit instead, so the DLL does not need libstdc++-6.dll.
+        list(APPEND LIBRARIES "-Wl,-Bstatic" stdc++ "-Wl,-Bdynamic")
+    else()
+        list(APPEND LIBRARIES stdc++)
+    endif()
 endif()
 if(APPLE)
     list(APPEND LIBRARIES "-framework CoreFoundation")
+endif()
+if(NOT HAS_ICONV)
+    # NOTE: the static libdjvu references miniconv on platforms without a
+    #       system iconv (see the djvulibre spec), so consumers need it too.
+    list(APPEND LIBRARIES ${STAGING_DIR}/lib/libiconv.a)
 endif()
 declare_dependency(djvulibre::djvulibre MONOLIBTIC jpeg STATIC djvulibre LIBRARIES ${LIBRARIES})
 
@@ -164,8 +187,16 @@ endif()
 
 # luajit
 if(USE_LUAJIT_LIB)
-    declare_dependency(luajit::luajit INCLUDES luajit-2.1 SHARED luajit)
-    get_target_property(LUAJIT_LIB luajit::luajit INTERFACE_LINK_LIBRARIES)
+    if(WIN32)
+        # NOTE: MinGW builds of LuaJIT produce `lua51.dll` (that name is baked
+        #       into its Makefile), not `libluajit.dll`, so point at the real
+        #       artifact instead of the generic `lib<name><ext>` spelling.
+        set(LUAJIT_LIB ${STAGING_DIR}/bin/lua51.dll)
+        declare_dependency(luajit::luajit INCLUDES luajit-2.1 LIBRARIES ${LUAJIT_LIB})
+    else()
+        declare_dependency(luajit::luajit INCLUDES luajit-2.1 SHARED luajit)
+        get_target_property(LUAJIT_LIB luajit::luajit INTERFACE_LINK_LIBRARIES)
+    endif()
 else()
     declare_dependency(luajit::luajit INCLUDES luajit-2.1)
     set(LUAJIT_LIB)

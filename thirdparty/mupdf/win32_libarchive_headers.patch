@@ -1,0 +1,27 @@
+From: KOReader <https://github.com/koreader/koreader-base>
+Subject: [PATCH] fitz/unlibarchive: fix the Windows include paths
+
+`#ifdef _WIN32` pulls in `libarchive/archive.h` / `libarchive/archive_entry.h`,
+which matches neither the MSVC/vcpkg layout nor MinGW's: libarchive installs
+its headers flat (`<archive.h>`, `<archive_entry.h>`).
+
+This is yet another Windows-only path upstream never built, so it only shows
+up when actually compiling for Windows. Use the same includes as everywhere
+else.
+
+--- a/source/fitz/unlibarchive.c
++++ b/source/fitz/unlibarchive.c
+@@ -24,13 +24,8 @@
+ 
+ #ifdef HAVE_LIBARCHIVE
+ 
+-#ifdef _WIN32
+-#include "libarchive/archive.h"
+-#include "libarchive/archive_entry.h"
+-#else
+ #include <archive.h>
+ #include <archive_entry.h>
+-#endif
+ 
+ typedef struct
+ {

@@ -3,6 +3,9 @@ list(APPEND PATCH_FILES
     # libtffi_wrap library, and pull in upstream fixes.
     turbo.patch
     d7a8a247a4a2689b0f207162eb804141c87c4899.patch
+    # LibreSSL undefines the WinCrypt macros too late for `openssl/ssl.h` to
+    # be usable on Windows (no-op elsewhere).
+    win32_wincrypt_include_order.patch
 )
 
 # Remove the 7 years-old copy of a CA bundle that turbo doesn't actually use.

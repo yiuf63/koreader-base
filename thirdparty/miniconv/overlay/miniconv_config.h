@@ -12,6 +12,13 @@
 #define MINICONV_INLINE  static inline
 #define MINICONV_PUBLIC  __attribute__((visibility("default")))
 
+/* Our `iconv-proto-compat.patch` uses C99's `restrict` in the prototypes, but
+   this header is also included from C++ (e.g. djvulibre's GUnicode.cpp when
+   the host has no iconv of its own), where `restrict` is not a keyword. */
+#if defined(__cplusplus) && !defined(restrict)
+#  define restrict __restrict
+#endif
+
 typedef uint16_t miniconv_uint16_t;
 typedef uint32_t miniconv_uint32_t;
 

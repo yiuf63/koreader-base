@@ -16,7 +16,9 @@ list(APPEND BUILD_CMD COMMAND ninja)
 if(MONOLIBTIC)
     append_install_commands(INSTALL_CMD libkoreader-lfs.a DESTINATION ${STAGING_DIR}/lib)
 else()
-    append_binary_install_command(INSTALL_CMD libkoreader-lfs.so DESTINATION libs)
+    # NOTE: use the shared helper so the module's extension follows the target
+    #       platform (`.so` / `.dylib` / `.dll`) instead of being hardcoded.
+    append_shared_lib_install_commands(INSTALL_CMD koreader-lfs)
 endif()
 
 external_project(

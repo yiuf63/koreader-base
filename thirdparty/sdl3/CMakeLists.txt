@@ -34,6 +34,13 @@ list(APPEND CMAKE_ARGS
     -DSDL_SENSOR=OFF
     -DSDL_TRAY=OFF
 )
+if(WIN32)
+    # NOTE: SDL_OPENGLES makes the Windows video backend include `<EGL/egl.h>`,
+    #       which is not part of a stock MinGW toolchain (and would drag in a
+    #       Mesa dependency for nothing): the readers only ever blit into a
+    #       software surface. Purely addititive elsewhere.
+    list(APPEND CMAKE_ARGS -DSDL_OPENGLES=OFF)
+endif()
 if(USE_SDL STREQUAL "builtin")
     list(APPEND CMAKE_ARGS
         # Miscellaneous video features/subsystems we don't care about.

@@ -18,6 +18,11 @@ target_link_libraries(ssl PRIVATE
     PkgConfig::LuaJIT
     PkgConfig::OpenSSL
 )
+if(WIN32)
+    # NOTE: luasec links the (static) luasocket archive, so it also needs the
+    #       Winsock import library that luasocket itself uses.
+    target_link_libraries(ssl PRIVATE ws2_32)
+endif()
 target_sources(ssl PRIVATE
     src/options.c
     src/x509.c

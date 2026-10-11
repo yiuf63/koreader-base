@@ -1,5 +1,10 @@
 include_guard(GLOBAL)
 
+# Directory of this module: `CMAKE_CURRENT_LIST_DIR` is dynamic (it tracks the
+# listfile being processed), so it cannot be used from within the functions
+# below, which are called from the individual thirdparty spec files.
+set(KOREADER_THIRDPARTY_MODULES_DIR ${CMAKE_CURRENT_LIST_DIR})
+
 if(CMAKE_HOST_APPLE)
     # Note: can't use `sed -i "" -e`, because cmake "helpfully"
     # filter-out the empty argument during command invocation…
@@ -70,7 +75,11 @@ function(append_binary_install_command CMD_LIST)
     foreach(SRC IN LISTS _UNPARSED_ARGUMENTS)
         get_filename_component(DST ${SRC} NAME)
         set(DST ${_DESTINATION}/${DST})
-        if(APPLE)
+        if(WIN32)
+            # MinGW/PE binaries: the ELF-style debug-info splitting below does
+            # not apply (`--add-gnu-debuglink` is ELF-only), so just copy.
+            list(APPEND ${CMD_LIST} COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC} ${DST})
+        elseif(APPLE)
             list(APPEND ${CMD_LIST} COMMAND dsymutil ${SRC} -o ${DST}.dSYM)
             list(APPEND ${CMD_LIST} COMMAND ${STRIP} -x ${SRC} -o ${DST})
         else()
@@ -84,7 +93,32 @@ endfunction()
 
 function(append_shared_lib_install_commands CMD_LIST)
     set_libname(LIB ${ARGN})
-    append_binary_install_command(${CMD_LIST} ${STAGING_DIR}/lib/${LIB} DESTINATION ${OUTPUT_DIR}/libs)
+    if(WIN32)
+        # MinGW/PE: thirdparty projects do not consistently install their DLL
+        # under the `lib<name>-<version>.dll` name we expect in `lib/`: CMake-
+        # based ones tend to install an unversioned `lib<name>.dll` into `bin/`
+        # (unlike libtool, which does use the versioned name). Look in both
+        # places, under both names, and install under our canonical name.
+        string(REGEX REPLACE "-[0-9][0-9.]*(\\.[A-Za-z0-9]+)$" "\\1" LIB_ALT ${LIB})
+        set(_DST ${OUTPUT_DIR}/libs/${LIB})
+        list(APPEND ${CMD_LIST} COMMAND ${CMAKE_COMMAND} -E make_directory ${OUTPUT_DIR}/libs)
+        list(APPEND ${CMD_LIST} COMMAND sh ${KOREADER_THIRDPARTY_MODULES_DIR}/install_lib.sh ${_DST}
+            ${STAGING_DIR}/lib/${LIB}
+            ${STAGING_DIR}/bin/${LIB}
+            ${STAGING_DIR}/lib/${LIB_ALT}
+            ${STAGING_DIR}/bin/${LIB_ALT}
+            # Some projects never install their DLL at all (lunasvg only installs
+            # the import library and headers), so also look in their build tree.
+            ${BINARY_DIR}/${LIB}
+            ${BINARY_DIR}/lib/${LIB}
+            ${BINARY_DIR}/src/${LIB}
+            ${BINARY_DIR}/${LIB_ALT}
+            ${BINARY_DIR}/lib/${LIB_ALT}
+            ${BINARY_DIR}/src/${LIB_ALT}
+        )
+    else()
+        append_binary_install_command(${CMD_LIST} ${STAGING_DIR}/lib/${LIB} DESTINATION ${OUTPUT_DIR}/libs)
+    endif()
     set(${CMD_LIST} ${${CMD_LIST}} PARENT_SCOPE)
 endfunction()
 
