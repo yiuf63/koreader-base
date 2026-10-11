@@ -75,6 +75,15 @@ local Blitbuffer = require("ffi/blitbuffer")
 local leptonica = ffi.loadlib("leptonica", "6")
 local k2pdfopt = ffi.loadlib("k2pdfopt", "2")
 
+-- `strdup` is POSIX: the MSVC CRT spells it `_strdup`, and does not provide an
+-- alias. (Nor does the UCRT, which still only exports `_strdup`.)
+local strdup
+if ffi.os == "Windows" then
+    strdup = C._strdup
+else
+    strdup = C.strdup
+end
+
 local KOPTContext = {
     k2pdfopt = k2pdfopt -- offer the libraries' functions to other users
 }
@@ -203,7 +212,7 @@ function KOPTContext_mt.__index:setLanguage(language)
     if language then
         -- As `self` is a struct, and `self.language` a `char *`,
         -- we need to make a C copy of the language string.
-        self.language = C.strdup(language)
+        self.language = strdup(language)
     end
 end
 

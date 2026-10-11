@@ -148,6 +148,9 @@ size_t strlen(const char *);
 size_t strnlen(const char *, size_t);
 char *strdup(const char *);
 char *strndup(const char *, size_t);
+/* NOTE: the MSVC/UCRT spelling of the above (there is no `strdup` alias). */
+char *_strdup(const char *);
+char *_strndup(const char *, size_t);
 int strcoll(const char *, const char *);
 int strcmp(const char *, const char *);
 int strcasecmp(const char *, const char *);
