@@ -4,6 +4,10 @@ set(BINARY_DIR ${SOURCE_DIR})
 list(APPEND PATCH_FILES koreader-luajit-makefile-tweaks.patch)
 # Enable table.pack & table.unpack w/o the rest of the -DLUAJIT_ENABLE_LUA52COMPAT baggage...
 list(APPEND PATCH_FILES koreader-luajit-enable-table_pack.patch)
+# Windows system messages arrive in the system ANSI code page (GBK on a Chinese
+# system) while Lua strings are UTF-8, so any reported OS error is mojibake —
+# including the text for a failed `ffi.load`/`require`.
+list(APPEND PATCH_FILES koreader-luajit-utf8-system-messages.patch)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     # Debugging is a go!

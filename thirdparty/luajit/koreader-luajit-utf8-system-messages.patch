@@ -1,0 +1,51 @@
+--- a/src/lj_clib.c
++++ b/src/lj_clib.c
+@@ -180,13 +180,20 @@
+   char buf[128*2];
+   if (!FormatMessageW(FORMAT_MESSAGE_IGNORE_INSERTS|FORMAT_MESSAGE_FROM_SYSTEM,
+ 		      NULL, err, 0, wbuf, sizeof(wbuf)/sizeof(wchar_t), NULL) ||
+-      !WideCharToMultiByte(CP_ACP, 0, wbuf, 128, buf, 128*2, NULL, NULL))
++      !WideCharToMultiByte(CP_UTF8, 0, wbuf, 128, buf, 128*2, NULL, NULL))
++    buf[0] = '\0';
+ #else
+-  char buf[128];
+-  if (!FormatMessageA(FORMAT_MESSAGE_IGNORE_INSERTS|FORMAT_MESSAGE_FROM_SYSTEM,
+-		      NULL, err, 0, buf, sizeof(buf), NULL))
+-#endif
++  /* The message is localized, so it is not ASCII: `FormatMessageA` returns it
++   * in the system ANSI code page, while Lua strings are UTF-8 — the mismatch
++   * shows up as mojibake wherever the error is displayed. Ask for UTF-16 and
++   * convert to UTF-8, the way the Xbox One branch above does. */
++  wchar_t wbuf[128];
++  char buf[128*2];
++  if (!FormatMessageW(FORMAT_MESSAGE_IGNORE_INSERTS|FORMAT_MESSAGE_FROM_SYSTEM,
++		      NULL, err, 0, wbuf, sizeof(wbuf)/sizeof(wchar_t), NULL) ||
++      !WideCharToMultiByte(CP_UTF8, 0, wbuf, 128, buf, 128*2, NULL, NULL))
+     buf[0] = '\0';
++#endif
+   lj_err_callermsg(L, lj_strfmt_pushf(L, fmt, name, buf));
+ }
+ 
+--- a/src/lib_package.c
++++ b/src/lib_package.c
+@@ -115,11 +115,16 @@
+   char buffer[128*2];
+   if (FormatMessageW(FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
+       NULL, error, 0, wbuffer, sizeof(wbuffer)/sizeof(wchar_t), NULL) &&
+-      WideCharToMultiByte(CP_ACP, 0, wbuffer, 128, buffer, 128*2, NULL, NULL))
++      WideCharToMultiByte(CP_UTF8, 0, wbuffer, 128, buffer, 128*2, NULL, NULL))
+ #else
+-  char buffer[128];
+-  if (FormatMessageA(FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
+-      NULL, error, 0, buffer, sizeof(buffer), NULL))
++  /* See the note in lj_clib.c's clib_error: `FormatMessageA` returns the text
++   * in the system ANSI code page, which is neither UTF-8 nor ASCII once the
++   * system locale is non-English. */
++  wchar_t wbuffer[128];
++  char buffer[128*2];
++  if (FormatMessageW(FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
++      NULL, error, 0, wbuffer, sizeof(wbuffer)/sizeof(wchar_t), NULL) &&
++      WideCharToMultiByte(CP_UTF8, 0, wbuffer, 128, buffer, 128*2, NULL, NULL))
+ #endif
+     lua_pushstring(L, buffer);
+   else

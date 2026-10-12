@@ -128,10 +128,63 @@ static void setup_dll_search_path(void) {
     }
 }
 
+/* Deal with the console this console-subsystem binary gets.
+ *
+ * The loader is a console-subsystem binary rather than a GUI-subsystem one,
+ * because a GUI-subsystem build cannot be started from Explorer/ShellExecute at
+ * all — the process exits immediately, with no error and nothing logged.
+ * Double-click has to work, so the console stays.
+ *
+ * That leaves two things to fix about the console:
+ *
+ * 1. It is noise when the user double-clicked. `GetConsoleProcessList` tells us
+ *    whether the console belongs to us alone (created for this process) or is
+ *    shared with a parent that launched us from a terminal. Only in the former
+ *    case — a double-click — is it hidden, so output stays visible when running
+ *    from a shell.
+ *
+ * 2. Windows consoles default to **QuickEdit mode**, where the first click
+ *    inside the window starts a text selection and *suspends the process* until
+ *    it is dismissed. Because the loader writes its logging to stdout, that
+ *    looks exactly like the application freezing; and closing the window kills
+ *    the process outright. Turn it off, so a stray click cannot suspend us.
+ */
+static void setup_console(void) {
+    HWND wnd = GetConsoleWindow();
+
+    /* No console at all (a GUI-subsystem parent): nothing to do. */
+    if (wnd == NULL)
+        return;
+
+    /* Is this console ours, or one we were launched from? */
+    DWORD owners[2] = { 0, 0 };
+    DWORD count = GetConsoleProcessList(owners, 2);
+    int ours_alone = (count == 1);
+
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
+    /* Make a click in the window harmless. */
+    HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD mode;
+    if (h != INVALID_HANDLE_VALUE && h != NULL && GetConsoleMode(h, &mode)) {
+        mode &= ~ENABLE_QUICK_EDIT_MODE;
+        mode |= ENABLE_EXTENDED_FLAGS;
+        SetConsoleMode(h, mode);
+    }
+
+    /* Hide it only when it was created just for us, which is the double-click
+     * case; a console inherited from a shell keeps showing output. */
+    if (ours_alone)
+        ShowWindow(wnd, SW_HIDE);
+}
+
 int main(int argc, const char * argv[]) {
     int retval;
     lua_State *L;
     char path[MAX_PATH];
+
+    setup_console();
 
     if (!chdir_to_project_root(path))
         exit(EXIT_FAILURE);

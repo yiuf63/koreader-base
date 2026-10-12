@@ -219,6 +219,18 @@ if(WIN32)
     )
     function(setup_win_loader_exe)
         set_target_properties(win_loader_exe PROPERTIES OUTPUT_NAME koreader)
+        # Keep the console subsystem (no `-mwindows`).
+        #
+        # Switching to the GUI subsystem would remove the console window, but it
+        # also coincided with the binary failing to start via
+        # Explorer/ShellExecute. That was never conclusively attributed to the
+        # subsystem — the same symptom appeared with a console build inside the
+        # development tree, which is full of symlinks, and never reproduced from
+        # an extracted package. Rather than adopt an unverified change, the
+        # console stays and `setup_console()` in win_loader.c makes it
+        # unobtrusive (hidden on a double-click, QuickEdit off so a click cannot
+        # suspend the process, UTF-8 output).
+        #
         # `windres` does not search the source directory for the file the `.rc`
         # includes, and a relative include is resolved against the *build*
         # directory.
