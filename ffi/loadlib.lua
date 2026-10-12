@@ -21,23 +21,6 @@ local android = ffi.os == "Linux" and os.getenv("IS_ANDROID") and require("andro
 -- NOTE: the `ffi.log` override is used by some tools to silence loadlib's traces.
 local log = ffi.log or android and android.LOGI or print
 
--- On Windows, `LoadLibraryEx` is passed `LOAD_WITH_ALTERED_SEARCH_PATH`, which
--- resolves a library's *own* dependencies relative to the directory of that
--- library — a directory it derives by looking for the last **backslash** in the
--- path it was given. Hand it a forward-slashed path (which is what
--- `package.cpath`, `lib_search_path` and our own callers produce, since the
--- rest of KOReader works with `/`) and that derivation silently goes wrong:
--- the library itself loads, but its dependencies are only found if something
--- else happens to make them findable. `libkoreader-djvu.dll` is the one that
--- has dependencies of its own, and it failed exactly like that.
--- Normalize to the platform separator before every load.
-local function platform_path(path)
-    if ffi.os ~= "Windows" then
-        return path
-    end
-    return (path:gsub("/", "\\"))
-end
-
 local monolibtic = {
     path = (android and android.nativeLibraryDir or "libs") .. "/libkoreader-monolibtic." .. (({ OSX = "dylib", Windows = "dll" })[ffi.os] or "so"),
     redirects = {
@@ -121,18 +104,17 @@ local ffi_load = ffi.load
 
 ffi.load = function(lib, global)
     log("ffi.load: " .. lib .. (global and " (RTLD_GLOBAL)" or ""))
-    if ffi.os == "Windows" then
-        -- On Windows, `LoadLibrary` only searches the application directory and
-        -- `PATH`, so a bare name (e.g. `ffi.load("sqlite3")`) would miss our
-        -- libraries: resolve it against `lib_search_path` first.
-        if not lib:find("[/\\]") then
-            local path = package.searchpath(libname(lib), lib_search_path, "/", "/")
-            if path then
-                log("ffi.load: resolved to " .. path)
-                lib = path
-            end
+    -- On Windows, `LoadLibrary` only searches the application directory and
+    -- `PATH`, so a bare name (e.g. `ffi.load("sqlite3")`) would miss our
+    -- libraries: resolve it against `lib_search_path` first. The DLL's own
+    -- dependencies resolve fine, as `win_loader.c` puts `libs/` in the DLL
+    -- search path.
+    if ffi.os == "Windows" and not lib:find("[/\\]") then
+        local path = package.searchpath(libname(lib), lib_search_path, "/", "/")
+        if path then
+            log("ffi.load: resolved to " .. path)
+            lib = path
         end
-        lib = platform_path(lib)
     end
     return ffi_load(lib, global)
 end
@@ -205,27 +187,3 @@ end
 log("lib_search_path: " .. lib_search_path)
 log("lib_basic_format: " .. lib_basic_format)
 log("lib_version_format: " .. lib_version_format)
-
-if ffi.os == "Windows" then
-    -- `require` on a C module does not go through the Lua-visible
-    -- `package.loadlib`: LuaJIT's C loader calls its own internal load function
-    -- directly. So the only way to fix the path it uses is to supply a loader
-    -- of our own, the way the Android branch above does.
-    --
-    -- The module names at stake are `require("libs/libkoreader-…")` (the cre,
-    -- DjVu and xtext bindings). `package.cpath` finds them via its `.\?.dll`
-    -- entry, which yields the mixed-separator path `.\libs/libkoreader-djvu.dll`
-    -- — and `LOAD_WITH_ALTERED_SEARCH_PATH` derives the directory to search for
-    -- the library's *own* dependencies by looking for the last backslash, so
-    -- those dependencies went unfound and the load failed with "module not
-    -- found" even though every dependency was sitting next to it.
-    local loadlib = package.loadlib
-    table.insert(package.loaders, 1, function(modulename)
-        if modulename:sub(1, 5) ~= "libs/" then
-            return
-        end
-        local path = platform_path(modulename:gsub("^libs/", "libs\\")) .. ".dll"
-        log(string.format("package.loadlib: %s [%s]", path, modulename))
-        return loadlib(path, "luaopen_" .. modulename:gsub("^libs/", ""))
-    end)
-end
