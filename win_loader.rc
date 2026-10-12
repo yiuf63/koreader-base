@@ -1,0 +1,4 @@
+/* Pull in the application manifest (see win_loader.manifest).
+ *
+ * RT_MANIFEST (24) with id 1 is the resource the loader looks for. */
+1 24 "win_loader.manifest"

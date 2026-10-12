@@ -211,10 +211,17 @@ if(WIN32)
     declare_koreader_target(
         win_loader_exe TYPE executable
         DEPENDS luajit::luajit
-        SOURCES win_loader.c
+        # The `.rc` only carries the application manifest, which opts the process
+        # into UTF-8 as its active code page (see win_loader.manifest).
+        SOURCES win_loader.c win_loader.rc
     )
     function(setup_win_loader_exe)
         set_target_properties(win_loader_exe PROPERTIES OUTPUT_NAME koreader)
+        # `windres` does not search the source directory for the file the `.rc`
+        # includes, and a relative include is resolved against the *build*
+        # directory.
+        target_include_directories(win_loader_exe PRIVATE ${CMAKE_SOURCE_DIR}/..)
+        enable_language(RC)
     endfunction()
 endif()
 

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity type="win32" name="KOReader" version="1.0.0.0" processorArchitecture="*"/>
+  <description>KOReader</description>
+
+  <!--
+    Opt the process into UTF-8 as the active code page (Windows 10 1903+).
+
+    Without this, the CRT hands us `argv` in the system ANSI code page (GBK on a
+    Chinese system), while the rest of KOReader treats strings as UTF-8: opening
+    a document whose name is not plain ASCII then produced mojibake in the UI
+    (and a path that only happened to work because `fopen` made the same wrong
+    assumption).
+
+    Declaring it here fixes the whole process at once — `argv`, `fopen`, and the
+    Win32 A-APIs — so no per-call conversion is needed anywhere.
+  -->
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">permonitorv2,permonitor</dpiAwareness>
+    </windowsSettings>
+  </application>
+</assembly>
