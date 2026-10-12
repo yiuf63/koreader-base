@@ -328,6 +328,16 @@ else
   SYMLINK = ln -snfr
 endif
 
+# Resolve a binutils tool for the target.
+#
+# MSYS2's mingw-w64 binutils installs the *plain* names in `/mingw64/bin`
+# (`ar`, `ranlib`, `windres`, …) and the target-prefixed ones in
+# `/mingw64/<chost>/bin`, which is not on PATH. So `$(CHOST)-ar` fails with
+# "command not found" on a clean install — it only works where an older binutils
+# left prefixed copies behind. Prefer the prefixed spelling when it resolves and
+# fall back to the plain one, which the `ld` case has always had to do.
+ko_chost_tool = $(or $(shell command -v $(CHOST)-$(1) >/dev/null 2>&1 && echo $(CHOST)-$(1)),$(1))
+
 # set cross-compiler/host CC and CXX
 ifneq (,$(USE_CLANG))
 	ifdef CHOST
@@ -376,18 +386,18 @@ ifdef ANDROID
 	RANLIB:=llvm-ranlib
 	READELF:=llvm-readelf
 else ifdef CHOST
-	STRIP:=$(CHOST)-strip
-	AR:=$(CHOST)-ar
+	STRIP:=$(call ko_chost_tool,strip)
+	AR:=$(call ko_chost_tool,ar)
 	# NOTE: not every MinGW toolchain ships a prefixed `ld` (MSYS2's mingw-w64
 	#       binutils only provides a plain `ld`). libtool then fails to detect
 	#       GNU ld and falls back to MSVC-style link commands (`-link -dll`),
 	#       which cannot build our DLLs at all.
-	LD:=$(shell command -v $(CHOST)-ld >/dev/null 2>&1 && echo $(CHOST)-ld || echo ld)
-	NM:=$(CHOST)-nm
-	OBJCOPY:=$(CHOST)-objcopy
-	RC:=$(CHOST)-windres
-	RANLIB:=$(CHOST)-ranlib
-	READELF:=$(CHOST)-readelf
+	LD:=$(call ko_chost_tool,ld)
+	NM:=$(call ko_chost_tool,nm)
+	OBJCOPY:=$(call ko_chost_tool,objcopy)
+	RC:=$(call ko_chost_tool,windres)
+	RANLIB:=$(call ko_chost_tool,ranlib)
+	READELF:=$(call ko_chost_tool,readelf)
 else
 	STRIP:=strip
 	AR:=ar
