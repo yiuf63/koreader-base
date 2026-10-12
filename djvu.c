@@ -704,7 +704,14 @@ static const struct luaL_Reg djvupage_meth[] = {
 	{NULL, NULL}
 };
 
-int luaopen_djvu(lua_State *L) {
+/* NOTE: `DLL_PUBLIC` has to be repeated here, not just in the `djvu.h`
+ *       declaration: what a symbol's visibility ends up being is decided by its
+ *       *definition*, so the declaration alone leaves it hidden under
+ *       `-fvisibility=hidden` — and then `require("libs/libkoreader-djvu")`
+ *       fails with "module not found", as there is no `luaopen_djvu` to bind
+ *       to. ELF exports everything by default, which is why this only shows on
+ *       the platforms that actually need the annotation. */
+DLL_PUBLIC int luaopen_djvu(lua_State *L) {
 	luaL_newmetatable(L, "djvudocument");
 	lua_pushstring(L, "__index");
 	lua_pushvalue(L, -2);
