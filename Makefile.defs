@@ -57,6 +57,26 @@ NINJA := $(or $(NINJA),ninja)
 NINJA_VERSION := $(shell $(NINJA) --version)
 USING_NINJA_1_13_OR_BETTER := $(call at_least_version,$(NINJA_VERSION),1.13.0)
 
+# On MSYS2, make sure ninja is the MSYS build.
+#
+# CMake records the interpreter it was invoked as in `CMAKE_COMMAND`, and ninja
+# uses that for its "Re-running CMake..." rule. The MSYS cmake records an
+# MSYS-style path (`/usr/bin/cmake.exe`), which only the MSYS ninja can execute:
+# the native (MINGW64) ninja resolves it with `CreateProcess`, which does not
+# understand those paths, and any attempt to regenerate a build.ninja then fails
+# with
+#     CreateProcess failed: The system cannot find the file specified.
+#     ninja: error: rebuilding 'build.ninja': subcommand failed
+# (The native ninja is also unusable here for a second reason: it emits Windows
+# paths for the command lines, and those lose their backslashes when run through
+# `/bin/sh`.)
+ifeq ($(CURRENT_OS), msys)
+  MSYS_BIN := $(shell printf '%s' "$$(dirname "$$(command -v sh)")")
+  ifneq (,$(wildcard $(MSYS_BIN)/ninja.exe))
+    NINJA := $(MSYS_BIN)/ninja
+  endif
+endif
+
 # Make / ninja flags.
 KEEP_GOING := $(findstring k,$(firstword -$(MAKEFLAGS)))
 DRY_RUN := $(findstring n,$(firstword -$(MAKEFLAGS)))

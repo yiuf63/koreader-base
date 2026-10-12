@@ -213,7 +213,9 @@ if(WIN32)
         DEPENDS luajit::luajit
         # The `.rc` only carries the application manifest, which opts the process
         # into UTF-8 as its active code page (see win_loader.manifest).
-        SOURCES win_loader.c win_loader.rc
+        # `win32_posix.c` exports the POSIX spellings of the CRT file calls for
+        # `ffi.C` to find (see the file's own comment).
+        SOURCES win_loader.c win32_posix.c win_loader.rc
     )
     function(setup_win_loader_exe)
         set_target_properties(win_loader_exe PROPERTIES OUTPUT_NAME koreader)
