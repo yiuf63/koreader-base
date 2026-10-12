@@ -349,6 +349,16 @@ end
 --                       as waitpid will return -1 w/ an ECHILD errno.
 -- NOTE: Assumes the target platform is POSIX compliant.
 function util.runInSubProcess(func, with_pipe, double_fork)
+    -- Windows has no `fork()`: the closest equivalent is `CreateProcess`, which
+    -- cannot clone the current process's memory, so it is not usable to run a
+    -- Lua closure against the state we already have (that is what this is for:
+    -- background re-rendering, thumbnails, ...).
+    -- Report failure rather than raising: every caller already handles it, and
+    -- falls back to doing the work synchronously.
+    if ffi.os == "Windows" then
+        return false, "fork() is not available on Windows"
+    end
+
     local parent_read_fd, parent_write_fd
     local child_read_fd, child_write_fd
     if with_pipe then
