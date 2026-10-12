@@ -71,3 +71,73 @@ KO_POSIX_EXPORT int write(int fd, const void *buf, size_t count) {
 KO_POSIX_EXPORT long lseek(int fd, long offset, int whence) {
     return _lseek(fd, offset, whence);
 }
+
+/* `gmtime_r` / `timegm` are POSIX; the MSVC CRT spells them `gmtime_s` and
+ * `_mkgmtime`. `ffi/rtc.lua` (the alarm/wakeup support) uses the POSIX names,
+ * and raised "cannot resolve symbol 'gmtime_r'" without this.
+ */
+
+struct ko_tm {
+    int tm_sec, tm_min, tm_hour, tm_mday, tm_mon, tm_year;
+    int tm_wday, tm_yday, tm_isdst;
+};
+
+__declspec(dllimport) int _gmtime64_s(struct ko_tm *tm, const long long *time);
+__declspec(dllimport) long long _mkgmtime64(struct ko_tm *tm);
+
+KO_POSIX_EXPORT struct ko_tm *gmtime_r(const long long *time, struct ko_tm *result) {
+    /* POSIX returns the result pointer, or NULL on failure. */
+    return _gmtime64_s(result, time) == 0 ? result : 0;
+}
+
+KO_POSIX_EXPORT long long timegm(struct ko_tm *tm) {
+    return _mkgmtime64(tm);
+}
+
+/* `clock_gettime` on top of the performance counters.
+ *
+ * Windows has no such function (MinGW's winpthread does not export it, and
+ * neither msvcrt nor ucrtbase do), while `ffi/posix_h.lua` declares it and
+ * callers use `CLOCK_MONOTONIC`-style ids. Only the monotonic clocks are
+ * meaningful here: the emulation counts from process start, which is what a
+ * monotonic clock is for. `CLOCK_REALTIME` is not provided (it would need the
+ * wall clock, and nothing here asks for it).
+ */
+
+typedef struct {
+    long long tv_sec;
+    long long tv_nsec;
+} ko_timespec;
+
+__declspec(dllimport) int QueryPerformanceCounter(long long *count);
+__declspec(dllimport) int QueryPerformanceFrequency(long long *freq);
+
+#define KO_CLOCK_REALTIME  0
+#define KO_CLOCK_MONOTONIC 1
+
+KO_POSIX_EXPORT int clock_gettime(int clockid, ko_timespec *ts) {
+    static long long freq, start;
+    static int initialised;
+    long long now;
+
+    if (clockid == KO_CLOCK_REALTIME) {
+        /* Not supported; report invalid argument rather than a wrong time. */
+        return -1;
+    }
+
+    if (!initialised) {
+        if (!QueryPerformanceFrequency(&freq) || freq == 0)
+            return -1;
+        QueryPerformanceCounter(&start);
+        initialised = 1;
+    }
+
+    QueryPerformanceCounter(&now);
+    /* Nanoseconds since the first call. Scaling before dividing keeps the
+     * sub-second resolution that a straight `(now - start) / freq * 1e9`
+     * would lose. */
+    long long ns = (now - start) * 1000000000LL / freq;
+    ts->tv_sec = ns / 1000000000LL;
+    ts->tv_nsec = ns % 1000000000LL;
+    return 0;
+}
