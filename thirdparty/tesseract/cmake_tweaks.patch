@@ -39,6 +39,15 @@ index d6ad09d1..34d3a1dc 100644
  endif()
  target_link_libraries(libtesseract PRIVATE ${LIB_Ws2_32} ${LIB_pthread})
  if(OpenMP_CXX_FOUND)
+@@ -931,7 +938,7 @@ set_target_properties(
+   libtesseract
+   PROPERTIES
+     OUTPUT_NAME
+-    tesseract$<$<BOOL:${WIN32}>:${VERSION_MAJOR}${VERSION_MINOR}$<$<CONFIG:DEBUG>:d>>
++    tesseract$<$<BOOL:${WIN32}>:-${VERSION_MAJOR}${VERSION_MINOR}$<$<CONFIG:DEBUG>:d>>
+ )
+ 
+ if(SW_BUILD)
 @@ -961,18 +968,20 @@ if(WIN32
  endif()
  
