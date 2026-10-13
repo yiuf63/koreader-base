@@ -126,18 +126,27 @@ for candidate in $unique; do
     # corrupted, whose recorded name was correct while their imports were not.
     # Since rewriting is deterministic (same exports in, same archive out) there is
     # nothing to gain by skipping, and a whole class of stale damage to lose.
-    if ! dlltool -d "$tmp/exports.def" -D "$dst_name" -l "$candidate.new" 2>/dev/null; then
+    #
+    # The temporary file is inside `$tmp`, which `mktemp -d` made unique per run.
+    # A sibling `.new` name would be shared: `make -j4` runs install steps
+    # concurrently, and two libraries of one project match the same archive
+    # (`libwebp-7.dll` and `libwebp.dll` both match `libwebp.dll.a`), so two
+    # processes would write that one path and one of them would be truncated.
+    new="$tmp/$(basename "$candidate").new"
+    if ! dlltool -d "$tmp/exports.def" -D "$dst_name" -l "$new" 2>/dev/null; then
         echo "record_canonical_implib: dlltool failed for $candidate" >&2
-        rm -f "$candidate.new"
+        rm -f "$new"
         exit 1
     fi
-    if [ ! -s "$candidate.new" ]; then
+    if [ ! -s "$new" ]; then
         echo "record_canonical_implib: empty result for $candidate" >&2
-        rm -f "$candidate.new"
+        rm -f "$new"
         exit 1
     fi
 
-    mv -f "$candidate.new" "$candidate"
+    # A rename within the filesystem, so a concurrent reader sees either the old
+    # archive or the new one and never a partial write.
+    mv -f "$new" "$candidate"
 
     if strings "$candidate" | grep -qix "$dst_name"; then
         echo "koreader: $(basename "$candidate") -> records $dst_name"
