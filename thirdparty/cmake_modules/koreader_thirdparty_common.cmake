@@ -131,8 +131,14 @@ function(append_shared_lib_install_commands CMD_LIST)
         # links its own libraries (libwebp does) uses the archive in its build
         # tree, not the installed copy, so both have to be rewritten or the
         # project's own libraries keep importing the old spelling.
+        #
+        # `${BINARY_DIR}/lib` is deliberately not passed too: `BINARY_DIR` itself
+        # already covers it, and the script deduplicates what it collects, so the
+        # extra argument would only be discarded. `dlltool` is slow on a large
+        # export list -- 12.8 seconds for tesseract's 2144 symbols -- so a
+        # candidate that turns out to be the same archive is worth not listing.
         list(APPEND ${CMD_LIST} COMMAND sh ${KOREADER_THIRDPARTY_MODULES_DIR}/record_canonical_implib.sh ${_DST}
-            ${STAGING_DIR}/lib ${BINARY_DIR} ${BINARY_DIR}/lib
+            ${STAGING_DIR}/lib ${BINARY_DIR}
         )
     else()
         append_binary_install_command(${CMD_LIST} ${STAGING_DIR}/lib/${LIB} DESTINATION ${OUTPUT_DIR}/libs)

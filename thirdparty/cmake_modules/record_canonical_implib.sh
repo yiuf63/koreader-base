@@ -97,40 +97,54 @@ stem=$(printf '%s' "$base" | sed 's/-[0-9][0-9.]*$//')      # z
 # not just the first. Two copies of the same archive exist when a project links
 # its own libraries, and rewriting one but not the other leaves half the tree
 # importing the old spelling.
+#
+# The candidates are collected before any rewriting, and each archive is rewritten
+# once. `dlltool` is slow on a large export list -- 12.8 seconds for tesseract's
+# 2144 symbols, against 0.09 for `gendef` -- so rebuilding the same archive twice
+# is worth avoiding. The first version of this loop nested the directories and the
+# stems, so `libwebp-7.dll` and `libwebp.dll` both matched `libwebp.dll.a` and it
+# was rebuilt each time; across a full build that cost minutes.
+candidates=""
 for dir in $lib_dirs; do
     [ -d "$dir" ] || continue
     for s in "$stem" "$base"; do
         for candidate in "$dir/lib$s.dll.a" "$dir/lib$s"-[0-9]*.dll.a; do
             [ -f "$candidate" ] || continue
-
-            # Rewritten unconditionally, even when the recorded name already
-            # looks right. An earlier version skipped those, on the theory that a
-            # no-op rebuild should stay a no-op — but that also skipped archives
-            # a previous bad rewrite had corrupted, whose recorded name was
-            # correct while their imports were not. Since rewriting is
-            # deterministic (same exports in, same archive out) there is nothing
-            # to gain by skipping, and a whole class of stale damage to lose.
-            if ! dlltool -d "$tmp/exports.def" -D "$dst_name" -l "$candidate.new" 2>/dev/null; then
-                echo "record_canonical_implib: dlltool failed for $candidate" >&2
-                rm -f "$candidate.new"
-                exit 1
-            fi
-            if [ ! -s "$candidate.new" ]; then
-                echo "record_canonical_implib: empty result for $candidate" >&2
-                rm -f "$candidate.new"
-                exit 1
-            fi
-
-            mv -f "$candidate.new" "$candidate"
-
-            if strings "$candidate" | grep -qix "$dst_name"; then
-                echo "koreader: $(basename "$candidate") -> records $dst_name"
-            else
-                echo "record_canonical_implib: $candidate still not recording $dst_name" >&2
-                exit 1
-            fi
+            candidates="$candidates $candidate"
         done
     done
+done
+
+# Deduplicated, so a path reachable through two of the patterns -- or two of the
+# directory arguments, which overlap for project build trees -- is rewritten once.
+unique=$(printf '%s\n' $candidates | sort -u)
+
+for candidate in $unique; do
+    # Rewritten unconditionally, even when the recorded name already looks right.
+    # An earlier version skipped those, on the theory that a no-op rebuild should
+    # stay a no-op — but that also skipped archives a previous bad rewrite had
+    # corrupted, whose recorded name was correct while their imports were not.
+    # Since rewriting is deterministic (same exports in, same archive out) there is
+    # nothing to gain by skipping, and a whole class of stale damage to lose.
+    if ! dlltool -d "$tmp/exports.def" -D "$dst_name" -l "$candidate.new" 2>/dev/null; then
+        echo "record_canonical_implib: dlltool failed for $candidate" >&2
+        rm -f "$candidate.new"
+        exit 1
+    fi
+    if [ ! -s "$candidate.new" ]; then
+        echo "record_canonical_implib: empty result for $candidate" >&2
+        rm -f "$candidate.new"
+        exit 1
+    fi
+
+    mv -f "$candidate.new" "$candidate"
+
+    if strings "$candidate" | grep -qix "$dst_name"; then
+        echo "koreader: $(basename "$candidate") -> records $dst_name"
+    else
+        echo "record_canonical_implib: $candidate still not recording $dst_name" >&2
+        exit 1
+    fi
 done
 
 exit 0
