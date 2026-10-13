@@ -116,6 +116,24 @@ function(append_shared_lib_install_commands CMD_LIST)
             ${BINARY_DIR}/lib/${LIB_ALT}
             ${BINARY_DIR}/src/${LIB_ALT}
         )
+        # Point the import archives at the canonical name, so anything linked from
+        # here on records `lib<name>-<version>.dll` in its import table instead of
+        # the producer's own spelling.
+        #
+        # PE resolves dependencies by literal file name, so a dependent that links
+        # against `libz.dll.a` asks for `libz.dll` at run time — while the frontend
+        # asks `ffi/loadlib.lua` for `libz-1.dll`. Both had to be shipped, and
+        # `install_lib.sh` hard-links them so the build tree stores one copy; a zip
+        # cannot store hard links, so the archive carried two (137 MB over 15
+        # libraries). With the archives rewritten there is one name, and one file.
+        #
+        # `BINARY_DIR` is searched as well as the staging directory: a project that
+        # links its own libraries (libwebp does) uses the archive in its build
+        # tree, not the installed copy, so both have to be rewritten or the
+        # project's own libraries keep importing the old spelling.
+        list(APPEND ${CMD_LIST} COMMAND sh ${KOREADER_THIRDPARTY_MODULES_DIR}/record_canonical_implib.sh ${_DST}
+            ${STAGING_DIR}/lib ${BINARY_DIR} ${BINARY_DIR}/lib
+        )
     else()
         append_binary_install_command(${CMD_LIST} ${STAGING_DIR}/lib/${LIB} DESTINATION ${OUTPUT_DIR}/libs)
     endif()

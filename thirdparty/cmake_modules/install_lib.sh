@@ -11,12 +11,21 @@
 # version of the same library, and install the first match under the canonical
 # name.
 #
-# The original name is kept around as well: our canonical names only exist for
-# the benefit of `ffi/loadlib.lua`, whereas the DLLs themselves record their
-# dependencies under whatever name they were linked against (PE has no soname
-# mechanism, unlike ELF/Mach-O), and the Windows loader resolves those from the
-# import table verbatim. Shipping both spellings is what makes e.g.
-# `libarchive-13.dll` find `libz.dll`.
+# Only the canonical name is installed. This used to install the producer's own
+# spelling beside it as well, because a DLL records its dependencies in the
+# import table as literal file names and the loader resolves them verbatim --
+# PE has no soname, unlike ELF and Mach-O -- so `libarchive-13.dll` needed a
+# `libz.dll` on disk if it had been linked against that name.
+#
+# That second copy was the whole problem. The two names are hard links in the
+# build tree, so it cost nothing there, but a zip cannot store hard links and
+# the archive shipped both: 15 libraries duplicated, 137 MB, of which
+# libtesseract alone was 107 MB. The duplication is removed at the source now
+# instead -- `record_canonical_implib.sh` points each import archive at the
+# canonical name before dependents link, and the two projects that link their own
+# libraries (libwebp, and tesseract through OUTPUT_NAME) emit the canonical name
+# directly -- so nothing references the producer's spelling any more and one file
+# per library is enough.
 #
 # Usage: install_lib.sh <destination> <candidate>...
 
@@ -29,15 +38,6 @@ install_lib() {
     src="$1"
     mkdir -p "$(dirname "$dst")"
     cp -f "$src" "$dst"
-    # Keep the original spelling as well (cf. the note above), unless it is
-    # already what we install as. Use a hard link: both names have to be real
-    # files for the loader, but they are the same bytes, and duplicating
-    # something like libtesseract (100MB+) twice per build adds up fast.
-    alias="$(dirname "$dst")/$(basename "$src")"
-    if [ "$alias" != "$dst" ]; then
-        rm -f "$alias"
-        ln "$dst" "$alias" 2>/dev/null || cp -f "$src" "$alias"
-    fi
     exit 0
 }
 
