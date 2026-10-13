@@ -128,26 +128,26 @@ static void setup_dll_search_path(void) {
     }
 }
 
-/* Deal with the console this console-subsystem binary gets.
+/* Make the console tolerable.
  *
- * The loader is a console-subsystem binary rather than a GUI-subsystem one,
- * because a GUI-subsystem build cannot be started from Explorer/ShellExecute at
- * all — the process exits immediately, with no error and nothing logged.
- * Double-click has to work, so the console stays.
+ * The loader is a console-subsystem binary, so it always has a console. Three
+ * things about that are worth fixing:
  *
- * That leaves two things to fix about the console:
+ * 1. Windows consoles default to **QuickEdit mode**, where the first click
+ *    inside the window begins a text selection and *suspends the process* until
+ *    it is dismissed. Since the loader writes its startup logging to stdout, a
+ *    stray click looks exactly like the application freezing; closing the window
+ *    instead kills the process. Turn it off.
  *
- * 1. It is noise when the user double-clicked. `GetConsoleProcessList` tells us
- *    whether the console belongs to us alone (created for this process) or is
- *    shared with a parent that launched us from a terminal. Only in the former
- *    case — a double-click — is it hidden, so output stays visible when running
- *    from a shell.
+ * 2. The console's code page is the system ANSI one (GBK on a Chinese system),
+ *    while the application's output is UTF-8, so the log is mojibake. Select the
+ *    UTF-8 code page so it is readable.
  *
- * 2. Windows consoles default to **QuickEdit mode**, where the first click
- *    inside the window starts a text selection and *suspends the process* until
- *    it is dismissed. Because the loader writes its logging to stdout, that
- *    looks exactly like the application freezing; and closing the window kills
- *    the process outright. Turn it off, so a stray click cannot suspend us.
+ * 3. The window itself is noise when the user double-clicked, so it is hidden —
+ *    but only then. `GetConsoleProcessList` distinguishes the two cases: a
+ *    console created for this process alone (double-click) has one attached
+ *    process, while one inherited from a terminal has at least two. Hiding is
+ *    reserved for the former, so launching from a shell still shows output.
  */
 static void setup_console(void) {
     HWND wnd = GetConsoleWindow();
@@ -173,8 +173,6 @@ static void setup_console(void) {
         SetConsoleMode(h, mode);
     }
 
-    /* Hide it only when it was created just for us, which is the double-click
-     * case; a console inherited from a shell keeps showing output. */
     if (ours_alone)
         ShowWindow(wnd, SW_HIDE);
 }
