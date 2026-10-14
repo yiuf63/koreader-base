@@ -16,9 +16,16 @@ list(APPEND BUILD_CMD COMMAND ninja)
 if(MONOLIBTIC)
     append_install_commands(INSTALL_CMD libkoreader-lfs.a DESTINATION ${STAGING_DIR}/lib)
 else()
-    # NOTE: use the shared helper so the module's extension follows the target
-    #       platform (`.so` / `.dylib` / `.dll`) instead of being hardcoded.
-    append_shared_lib_install_commands(INSTALL_CMD koreader-lfs)
+    # `EXT ${CMAKE_SHARED_MODULE_SUFFIX}`, not the default `LIB_EXT`: this is a
+    # CMake `MODULE` library (a Lua C extension, dlopen'd rather than linked
+    # against), and a module does not take the platform's `SHARED` suffix.
+    # `Darwin.cmake` sets the module suffix to `.so` deliberately, so macOS
+    # builds `libkoreader-lfs.so` while `LIB_EXT` there is `.dylib`, and the
+    # install step would look for a file that does not exist:
+    #     dsymutil: cannot parse the debug map for 'libkoreader-lfs.dylib'
+    #
+    # The two agree on Windows and Linux, which is why only macOS shows it.
+    append_shared_lib_install_commands(INSTALL_CMD koreader-lfs EXT ${CMAKE_SHARED_MODULE_SUFFIX})
 endif()
 
 external_project(
