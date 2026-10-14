@@ -53,9 +53,19 @@ append_install_commands(INSTALL_CMD libluasocket.a DESTINATION ${STAGING_DIR}/li
 if(MONOLIBTIC)
     append_install_commands(INSTALL_CMD mcore.a score.a DESTINATION ${STAGING_DIR}/lib)
 else()
-    # NOTE: not always `.so` (i.e. `.dll` on Windows).
-    append_binary_install_command(INSTALL_CMD score${LIB_EXT} DESTINATION common/socket)
-    append_binary_install_command(INSTALL_CMD mcore${LIB_EXT} DESTINATION common/mime)
+    # `CMAKE_SHARED_MODULE_SUFFIX`, not `LIB_EXT`.
+    #
+    # These are CMake `MODULE` libraries -- Lua C extensions, dlopen'd rather
+    # than linked against -- and a module does not use the platform's shared
+    # library suffix. Darwin.cmake sets it to `.so` on purpose
+    # (`Modules/Platform/Darwin.cmake: set(CMAKE_SHARED_MODULE_SUFFIX ".so")`),
+    # so macOS produces `score.so`; `LIB_EXT` is `.dylib` there (it is the
+    # `SHARED` suffix), and asking for `score.dylib` fails in the install step
+    # with `dsymutil: cannot parse the debug map ... No such file or directory`.
+    #
+    # On Windows the two agree (`.dll`), which is why this went unnoticed.
+    append_binary_install_command(INSTALL_CMD score${CMAKE_SHARED_MODULE_SUFFIX} DESTINATION common/socket)
+    append_binary_install_command(INSTALL_CMD mcore${CMAKE_SHARED_MODULE_SUFFIX} DESTINATION common/mime)
 endif()
 
 external_project(
