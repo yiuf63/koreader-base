@@ -80,10 +80,21 @@ target_include_directories(crengine PRIVATE
     $<TARGET_PROPERTY:crengine::crengine,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
-# `crsetup.h` gates crengine's POSIX-only code paths on these. The toolchain
-# provides `LINUX` (empty on Windows, where crengine takes its own `_WIN32`
-# paths instead).
-if(LINUX)
+# `crsetup.h` gates crengine's POSIX-only code paths on these.
+#
+# Upstream defines both unconditionally ("yes, even on macOS"), because Windows
+# was simply unsupported. Windows takes its own `_WIN32` paths in crengine, and
+# leaving `LINUX`/`_LINUX` defined there sends it down the POSIX branches, so
+# they are set only off Windows.
+#
+# Tested as `NOT WIN32`, which is a CMake built-in, rather than as `LINUX`. The
+# Makefile forwards `ANDROID`, `KINDLE`, `KOBO` and the rest to CMake but never
+# `LINUX` (`cmake_koreader_vars` in `base/Makefile.defs`), so `if(LINUX)` is
+# false everywhere — including macOS and Linux — and `_LINUX` would go unset
+# there, which crengine answers with
+#     #error * You should define GetCurrentTimeMillis() *
+if(NOT WIN32)
+    set(LINUX 1)
     set(_LINUX 1)
 endif()
 configure_file(crsetup.h.cmake crsetup.h)
