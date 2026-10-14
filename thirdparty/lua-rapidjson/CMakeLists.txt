@@ -13,9 +13,12 @@ list(APPEND BUILD_CMD COMMAND ninja)
 if(MONOLIBTIC)
     append_install_commands(INSTALL_CMD rapidjson.a DESTINATION ${STAGING_DIR}/lib)
 else()
-    # NOTE: the module's extension follows the target platform
-    #       (`.so` / `.dylib` / `.dll`), so it cannot be hardcoded.
-    append_binary_install_command(INSTALL_CMD rapidjson${LIB_EXT} DESTINATION common)
+    # `CMAKE_SHARED_MODULE_SUFFIX`, not `LIB_EXT`: this is a CMake `MODULE`
+    # library, and a module does not take the platform's `SHARED` suffix.
+    # `Darwin.cmake` sets the module suffix to `.so` deliberately, while
+    # `LIB_EXT` is `.dylib` there, so the install step would look for a file the
+    # build never produced. The two agree on Windows (`.dll`) and on Linux.
+    append_binary_install_command(INSTALL_CMD rapidjson${CMAKE_SHARED_MODULE_SUFFIX} DESTINATION common)
 endif()
 
 external_project(

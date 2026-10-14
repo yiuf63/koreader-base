@@ -10,9 +10,12 @@ list(APPEND BUILD_CMD COMMAND ninja)
 if(MONOLIBTIC)
     append_install_commands(INSTALL_CMD ssl.a DESTINATION ${STAGING_DIR}/lib)
 else()
-    # NOTE: the module's extension follows the target platform
-    #       (`.so` / `.dylib` / `.dll`), so it cannot be hardcoded.
-    append_binary_install_command(INSTALL_CMD ssl${LIB_EXT} DESTINATION common)
+    # `CMAKE_SHARED_MODULE_SUFFIX`, not `LIB_EXT`: this is a CMake `MODULE`
+    # library, and a module does not take the platform's `SHARED` suffix.
+    # `Darwin.cmake` sets the module suffix to `.so` deliberately, while
+    # `LIB_EXT` is `.dylib` there, so the install step would look for a file the
+    # build never produced. The two agree on Windows (`.dll`) and on Linux.
+    append_binary_install_command(INSTALL_CMD ssl${CMAKE_SHARED_MODULE_SUFFIX} DESTINATION common)
 endif()
 append_install_commands(INSTALL_CMD ${SOURCE_DIR}/src/ssl.lua DESTINATION common)
 append_install_commands(INSTALL_CMD ${SOURCE_DIR}/src/https.lua DESTINATION common/ssl)
