@@ -91,12 +91,24 @@ function(setup_blitbuffer)
     target_compile_options(blitbuffer PRIVATE -Wno-maybe-uninitialized SHELL:${VECTO_CFLAGS})
 endfunction()
 
+# `SUFFIX ${CMAKE_SHARED_MODULE_SUFFIX}` for the `monolibtic` targets below.
+#
+# They are loaded with `require("libs/libkoreader-…")`, so Lua resolves them
+# through `package.cpath`, which lists `?.dll` and `?.so` and nothing else.
+# `LIB_EXT` would be wrong on macOS: it is the `SHARED` suffix (`.dylib`
+# there), while `CMAKE_SHARED_MODULE_SUFFIX` defaults to it and is overridden
+# to `.so` by `Darwin.cmake` for precisely this reason. So the module suffix
+# is `.dll` on Windows, `.so` on macOS and Linux -- the two `cpath` entries.
+#
+# This was a hardcoded `.so` upstream, which was correct on macOS and Linux
+# and wrong on Windows.
+
 # koreade-cre
 declare_koreader_target(
     koreader-cre TYPE monolibtic
     DEPENDS crengine::crengine luajit::luajit
     SOURCES cre.cpp
-    SUFFIX ${LIB_EXT}
+    SUFFIX ${CMAKE_SHARED_MODULE_SUFFIX}
     VISIBILITY hidden
 )
 
@@ -105,7 +117,7 @@ declare_koreader_target(
     koreader-djvu TYPE monolibtic
     DEPENDS blitbuffer djvulibre::djvulibre libk2pdfopt::k2pdfopt luajit::luajit
     SOURCES djvu.c
-    SUFFIX ${LIB_EXT}
+    SUFFIX ${CMAKE_SHARED_MODULE_SUFFIX}
     VISIBILITY hidden
 )
 function(setup_koreader_djvu)
@@ -152,7 +164,7 @@ declare_koreader_target(
     koreader-nnsvg TYPE monolibtic
     DEPENDS luajit::luajit nanosvg::nanosvg
     SOURCES nnsvg.c
-    SUFFIX ${LIB_EXT}
+    SUFFIX ${CMAKE_SHARED_MODULE_SUFFIX}
     VISIBILITY hidden
 )
 
@@ -161,7 +173,7 @@ declare_koreader_target(
     koreader-xtext TYPE monolibtic
     DEPENDS freetype2::freetype fribidi::fribidi harfbuzz::harfbuzz luajit::luajit libunibreak::unibreak
     SOURCES xtext.cpp
-    SUFFIX ${LIB_EXT}
+    SUFFIX ${CMAKE_SHARED_MODULE_SUFFIX}
     VISIBILITY hidden
 )
 
