@@ -33,6 +33,19 @@ list(APPEND CMAKE_ARGS
     # Prevent md library fallback because OpenSSL is not used.
     -DLIBMD_FOUND=FALSE
 )
+if(WIN32)
+    # 3.8.9 calls BCrypt from `archive_random.c` and `archive_util.c`
+    # unconditionally, but `bcrypt` only reaches `ADDITIONAL_LIBS` when
+    # `ENABLE_CNG` is on -- and it is off below (upstream's choice, and this
+    # tree does not need its MD5/SHA implementations). 3.8.7 guarded those
+    # calls with `HAVE_BCRYPT_H` and fell back to `CryptGenRandom`; 3.8.9
+    # dropped both the guard and the fallback, so the link fails.
+    #
+    # Linking it unconditionally is smaller than restoring the guards in two
+    # files, and keeps the current BCrypt code rather than the deprecated
+    # `CryptGenRandom` path. `bcrypt.dll` has shipped since Vista.
+    list(APPEND CMAKE_ARGS -DCMAKE_C_STANDARD_LIBRARIES=-lbcrypt)
+endif()
 if(GLIBC_VERSION_MAX AND GLIBC_VERSION_MAX VERSION_LESS "2.6")
     # Avoid pulling-in `futimens@@GLIBC_2.6` and `utimensat@@GLIBC_2.6`.
     list(APPEND CMAKE_ARGS
