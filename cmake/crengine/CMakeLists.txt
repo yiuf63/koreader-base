@@ -47,6 +47,26 @@ list(APPEND CMAKE_ARGS
     -DDISABLE_LFS=$<BOOL:${LEGACY}>
 )
 
+# crengine resolves its dependencies with `pkg_check_modules(... IMPORTED_TARGET)`,
+# which passes the `.pc` files' include directories through
+# `INTERFACE_INCLUDE_DIRECTORIES`. CMake refuses *relative* paths there, and that
+# is what it sees on Windows: the CMake running this is the MSYS one, which
+# reports `CMAKE_HOST_UNIX=1` and therefore reads `D:/x` as relative, while every
+# pkg-config available here is a native binary that normalises paths to exactly
+# that drive-letter form. The result is
+#
+#     Target "PkgConfig::FREETYPE" contains relative path in its
+#     INTERFACE_INCLUDE_DIRECTORIES
+#
+# `utils/win32-pkg-config.sh` rewrites those paths back to the MSYS spelling,
+# which CMake reads as absolute. Pointing `PKG_CONFIG_EXECUTABLE` at it is
+# needed because `find_package(PkgConfig)` otherwise picks `/usr/bin/pkg-config.exe`
+# off `PATH` before `PKG_CONFIG` is consulted. No-op on other platforms, which
+# have neither problem.
+if(WIN32)
+    list(APPEND CMAKE_ARGS "-DPKG_CONFIG_EXECUTABLE=${BASE_DIR}/utils/win32-pkg-config.sh")
+endif()
+
 list(APPEND BUILD_CMD COMMAND ninja)
 
 external_project(

@@ -3,12 +3,22 @@ list(APPEND PATCH_FILES
     #       through its `HAVE_WIN32_API` paths, which MinGW enables by defining
     #       `WIN32`, but `willuslib/win.c` is not in the build. No-op on other
     #       platforms, where those paths are not compiled.
-    #
-    #       Replaces `win32_drop_wgui.patch` and `win32_no_ansi_parse.patch`:
-    #       upstream's update to pin `64aa9cc` (ffac0764, #2542) dropped
-    #       `wgui.c` from the build and made `avprintf()` call `vfprintf()`
-    #       unconditionally, so both of those changes are now upstream's.
     win32_build_win_c.patch
+    # NOTE: `trim the fat` (#50) disabled the ANSI parsing machinery, but left
+    #       the `#ifdef WIN32` fast path in `avprintf()` calling into it, so the
+    #       file does not compile on Windows (MinGW predefines `WIN32`):
+    #           willuslib/ansi.c:330:25: error: 'ansi_buffer' undeclared
+    #       Upstream's update to pin `64aa9cc` did not touch this. No-op
+    #       elsewhere, where the path is not compiled.
+    win32_no_ansi_parse.patch
+    # NOTE: upstream's `4c11f61 disable some unused code` wrapped two runs in
+    #       `#if 0` that Windows actually needs, because MinGW defines `WIN32`
+    #       and `willus.h` turns that into `HAVE_WIN32_API`:
+    #         * `wsys_win32_api()`, called by `wfile.c`;
+    #         * the six `wfile_*` date helpers, called by `win.c`.
+    #       The link fails on `undefined reference to` each of them. No-op
+    #       elsewhere, where nothing calls them.
+    win32_undisable_needed_code.patch
 )
 
 if(NOT MONOLIBTIC)

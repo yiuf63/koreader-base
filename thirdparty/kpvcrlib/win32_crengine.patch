@@ -421,3 +421,32 @@ index 22bfb425..4880e069 100644
  
  /// Compression.
  #define USE_ZLIB                             @USE_ZLIB@
+diff --git a/crengine/src/lvfntman.cpp b/crengine/src/lvfntman.cpp
+index bdf6736b..7ea15af8 100644
+--- a/crengine/src/lvfntman.cpp
++++ b/crengine/src/lvfntman.cpp
+@@ -364,14 +364,22 @@ static const char * EMBEDDED_FONT_DEF_MAGIC = "FNTD";
+ ////////////////////////////////////////////////////////////////////
+ bool LVEmbeddedFontDef::serialize(SerialBuf & buf) {
+     buf.putMagic(EMBEDDED_FONT_DEF_MAGIC);
+-    buf << _url << _face << _weight << _italic << _isLocal << _docFragmentIdx;
++    // NOTE: Windows types `lInt32` as `long` (see `lvtypes.h`), so a plain `int`
++    //       is ambiguous between the `lInt32` and `lUInt32` overloads there.
++    buf << _url << _face << (lInt32)_weight << _italic << _isLocal << (lInt32)_docFragmentIdx;
+     return !buf.error();
+ }
+ 
+ bool LVEmbeddedFontDef::deserialize(SerialBuf & buf) {
+     if (!buf.checkMagic(EMBEDDED_FONT_DEF_MAGIC))
+         return false;
+-    buf >> _url >> _face >> _weight >> _italic >> _isLocal >> _docFragmentIdx;
++    // NOTE: `operator >>` takes a non-const reference, so these two cannot be
++    //       cast in place (as they are when writing, above); read through
++    //       `lInt32` locals and assign.
++    lInt32 weight, docFragmentIdx;
++    buf >> _url >> _face >> weight >> _italic >> _isLocal >> docFragmentIdx;
++    _weight = weight;
++    _docFragmentIdx = docFragmentIdx;
+     return !buf.error();
+ }
+ 

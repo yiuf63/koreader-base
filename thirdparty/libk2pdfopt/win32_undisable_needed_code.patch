@@ -1,0 +1,79 @@
+From: KOReader <https://github.com/koreader/koreader-base>
+Subject: [PATCH] willuslib: keep the Win32 code paths' callees out of `#if 0`
+
+Upstream's `4c11f61 disable some unused code` wrapped several runs of
+libk2pdfopt in `#if 0`. Two of those runs contain functions that Windows does
+need: MinGW defines `WIN32`, `willus.h` turns that into `HAVE_WIN32_API`, and
+code guarded by it calls them.
+
+  * `wsys_win32_api()`, called from `wfile.c`'s `wfile_findfirst`,
+    `wfile_findnext` and `wfile_findclose`:
+
+        undefined reference to `wsys_win32_api'
+
+  * `wfile_increment_hour()` and `wfile_decrement_hour()`, called from `win.c`'s
+    `win_ntfs_date_to_proper_date()` and `win_proper_date_to_ntfs_date()`, plus
+    the four helpers those two call among themselves (`wfile_increment_day`,
+    `wfile_decrement_day`, `wfile_days_in_month`, `wfile_leap_year`):
+
+        undefined reference to `wfile_increment_hour'
+
+Neither shows up on the platforms upstream builds for, so neither was noticed.
+
+Each fix closes the disabled run before the needed functions and reopens it
+after, so everything else in those runs stays disabled exactly as upstream left
+it. No-op elsewhere, where nothing calls them.
+
+diff --git a/willuslib/wfile.c b/willuslib/wfile.c
+index 695b971..477d5c4 100644
+--- a/willuslib/wfile.c
++++ b/willuslib/wfile.c
+@@ -811,6 +811,13 @@ int wfile_saved_during_daylight_savings(char *filename)
+     }
+ 
+ 
++/* NOTE: `win.c` calls these from `win_ntfs_date_to_proper_date()` and
++ *       `win_proper_date_to_ntfs_date()`, and MinGW compiles win.c because
++ *       it defines `WIN32`. Keep them outside the block above, which upstream
++ *       closed around the rest of this run. These six call one another, so
++ *       they move together. */
++#endif
++
+ void wfile_increment_hour(struct tm *ts)
+ 
+     {
+@@ -959,6 +966,8 @@ int wfile_leap_year(int year)
+     return((year%400==0) || ((year%100!=0) && (year%4==0)));
+     }
+ 
++#if 0
++
+ #endif
+ 
+ /*
+diff --git a/willuslib/wsys.c b/willuslib/wsys.c
+index f4d7762..5dae13c 100644
+--- a/willuslib/wsys.c
++++ b/willuslib/wsys.c
+@@ -245,6 +245,12 @@ static void gnu_compiler(char *compiler_version)
+ #endif
+ 
+ 
++/* NOTE: MinGW defines `WIN32`, which `willus.h` turns into `HAVE_WIN32_API`,
++ *       and `wfile.c` then calls this from `wfile_findfirst`, `wfile_findnext`
++ *       and `wfile_findclose`. Keep it outside the block above, which upstream
++ *       closed around the rest of this run. */
++#endif
++
+ int wsys_win32_api(void)
+ 
+     {
+@@ -261,6 +267,8 @@ int wsys_win32_api(void)
+ #endif
+     }
+ 
++#if 0
++
+ 
+ /*
+ ** Return the status of a process.

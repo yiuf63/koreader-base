@@ -277,7 +277,19 @@ declare_koreader_target(
 )
 
 # unpack
-if(NOT (ANDROID OR APPLE OR EMULATE_READER))
+#
+# Not built for Windows. It links the *static* libarchive, xz, zlib and zstd,
+# and that only works where those are built static-only (which is what
+# MONOLIBTIC does, on the devices this tool is for). Here the shared build runs
+# alongside, so libarchive's static archive is compiled with `-DZLIB_DLL` --
+# detected against the import library, and inherited by both targets -- and its
+# zlib references become `__imp_inflateEnd` and friends, which need the DLL at
+# run time and so defeat the point of a static link.
+#
+# Nothing needs it: no Lua code invokes it, no Makefile installs it, and it is
+# not in the shipped package. Left out rather than linked against a mix of
+# static and import libraries.
+if(NOT (ANDROID OR APPLE OR EMULATE_READER OR WIN32))
     set(EXCLUDE_FROM_ALL)
 else()
     set(EXCLUDE_FROM_ALL EXCLUDE_FROM_ALL)

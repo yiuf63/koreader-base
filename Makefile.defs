@@ -1077,6 +1077,11 @@ comma:=,
 # meson is a native Windows program, so it hands pkg-config Windows-style paths
 # (via PKG_CONFIG_LIBDIR), which the MSYS build of pkg-config cannot resolve.
 # Prefer a native pkg-config there, spelled with a native path.
+#
+# The matching native spelling of `PKG_CONFIG_LIBDIR` is set with the rest of
+# the cross-compilation environment above; both halves are needed, because the
+# native pkg-config cannot resolve an MSYS path and silently returns relative
+# ones (which CMake then rejects).
 ifeq ($(WIN32),1)
   MESON_PKGCONFIG = $(shell cygpath -m /mingw64/bin/pkg-config.exe 2>/dev/null || echo pkg-config)
 else
