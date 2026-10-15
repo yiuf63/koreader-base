@@ -1,13 +1,14 @@
 list(APPEND PATCH_FILES
-    # NOTE: `trim the fat` (#50) disabled the ANSI parsing code, but the
-    #       Win32-only fast path in `avprintf()` was left behind and still
-    #       references it, so the file does not compile on Windows (MinGW
-    #       predefines `WIN32`). No-op on other platforms.
-    win32_no_ansi_parse.patch
-    # NOTE: backport of upstream's `c2bc709 drop the need for willuslib/wgui.c`
-    #       (koreader-base pin `64aa9cc`); the Win32 GUI backend drags in a
-    #       chain of helpers this library does not build, so it fails to link.
-    win32_drop_wgui.patch
+    # NOTE: `wsys.c` reaches `win_has_own_window()` / `win_full_exe_name()`
+    #       through its `HAVE_WIN32_API` paths, which MinGW enables by defining
+    #       `WIN32`, but `willuslib/win.c` is not in the build. No-op on other
+    #       platforms, where those paths are not compiled.
+    #
+    #       Replaces `win32_drop_wgui.patch` and `win32_no_ansi_parse.patch`:
+    #       upstream's update to pin `64aa9cc` (ffac0764, #2542) dropped
+    #       `wgui.c` from the build and made `avprintf()` call `vfprintf()`
+    #       unconditionally, so both of those changes are now upstream's.
+    win32_build_win_c.patch
 )
 
 if(NOT MONOLIBTIC)

@@ -1,0 +1,31 @@
+From: KOReader <https://github.com/koreader/koreader-base>
+Subject: [PATCH] win32: build willuslib/win.c
+
+`wsys.c` calls `win_has_own_window()` and `win_full_exe_name()` through its
+`HAVE_WIN32_API` paths. MinGW enables those by defining `WIN32`, but the
+functions live in `willuslib/win.c`, which the build does not include -- so the
+link fails:
+
+    undefined reference to `win_has_own_window'
+    undefined reference to `win_full_exe_name'
+
+(Replaces `win32_drop_wgui.patch` and `win32_no_ansi_parse.patch`, which were
+written against the previous libk2pdfopt pin, `1fcffeb`. Upstream's update to
+`64aa9cc` (ffac0764, #2542) dropped `wgui.c` from the build and made
+`avprintf()` call `vfprintf()` unconditionally, so both of those changes are now
+upstream's; only this one is still needed.)
+
+--- a/lib/CMakeLists.txt
++++ b/lib/CMakeLists.txt
+@@ -80,6 +80,11 @@ add_library(k2pdfopt
+     ../willuslib/wleptonica.c
+     ../willuslib/wsys.c
+ )
++if(WIN32)
++    # NOTE: `wsys.c` calls into these through its `HAVE_WIN32_API` paths,
++    #       which only get enabled on Windows (see `willuslib/willus.h`).
++    target_sources(k2pdfopt PRIVATE ../willuslib/win.c)
++endif()
+ set_target_properties(k2pdfopt PROPERTIES SOVERSION 2)
+ set_target_properties(k2pdfopt PROPERTIES
+     C_VISIBILITY_PRESET hidden
