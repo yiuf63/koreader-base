@@ -92,6 +92,14 @@ fi
 full=$(printf '%s' "$dst_name" | sed 's/\.dll$//')          # libz-1
 base=$(printf '%s' "$full" | sed 's/^lib//')                # z-1
 stem=$(printf '%s' "$base" | sed 's/-[0-9][0-9.]*$//')      # z
+# A third spelling appears when the project's ABI number is part of the name it
+# exports, rather than a `-<version>` suffix. libpng does this: the DLL is
+# `libpng16-16.dll`, and it installs *two* import archives -- `libpng16.dll.a`
+# (matching `stem` above) and `libpng.dll.a` (this one). Whichever a dependent
+# happens to link, it records the DLL name it was built against, so both have to
+# be rewritten; leptonica links the second, and was left importing `libpng16.dll`.
+abi=$(printf '%s' "$stem" | sed 's/[0-9][0-9.]*$//')        # png
+[ -n "$abi" ] && [ "$abi" != "$stem" ] || abi=$stem
 
 # Every archive with a matching name, in every directory given, is rewritten —
 # not just the first. Two copies of the same archive exist when a project links
@@ -107,7 +115,7 @@ stem=$(printf '%s' "$base" | sed 's/-[0-9][0-9.]*$//')      # z
 candidates=""
 for dir in $lib_dirs; do
     [ -d "$dir" ] || continue
-    for s in "$stem" "$base"; do
+    for s in "$stem" "$base" "$abi"; do
         for candidate in "$dir/lib$s.dll.a" "$dir/lib$s"-[0-9]*.dll.a; do
             [ -f "$candidate" ] || continue
             candidates="$candidates $candidate"
