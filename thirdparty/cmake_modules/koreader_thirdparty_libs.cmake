@@ -48,8 +48,6 @@ target_link_libraries(
     _crengine__crengine
     INTERFACE
     ${OUTPUT_DIR}/thirdparty/crengine/build/libcrengine.a
-    ${OUTPUT_DIR}/thirdparty/crengine/build/crengine/thirdparty/antiword/libantiword.a
-    ${OUTPUT_DIR}/thirdparty/crengine/build/crengine/thirdparty/chmlib/libchmlib.a
     freetype2::freetype
     harfbuzz::harfbuzz
     libunibreak::unibreak
@@ -65,8 +63,7 @@ target_link_libraries(
     zlib::z
     zstd::zstd
 )
-target_compile_options(_crengine__crengine INTERFACE -include ${OUTPUT_DIR}/thirdparty/crengine/build/crsetup.h)
-target_include_directories(_crengine__crengine INTERFACE ${THIRDPARTY_DIR}/kpvcrlib/crengine/crengine/include)
+target_include_directories(_crengine__crengine INTERFACE ${OUTPUT_DIR}/thirdparty/crengine/build ${THIRDPARTY_DIR}/kpvcrlib/crengine/crengine/include)
 
 # czmq
 set(LIBRARIES)
@@ -121,6 +118,7 @@ declare_dependency(koreader-lfs::koreader-lfs MONOLIBTIC koreader-lfs)
 
 # libarchive
 declare_dependency(libarchive::libarchive MONOLIBTIC archive)
+declare_dependency(libarchive::libarchive_static STATIC archive)
 
 # leptonica
 declare_dependency(leptonica::leptonica INCLUDES leptonica MONOLIBTIC leptonica)
@@ -202,6 +200,7 @@ else()
     set(LUAJIT_LIB)
 endif()
 get_target_property(LUAJIT_INC luajit::luajit INTERFACE_INCLUDE_DIRECTORIES)
+declare_dependency(luajit::luajit_static INCLUDES luajit-2.1 STATIC luajit-5.1 LIBRARIES dl m)
 
 # luasec
 if(MONOLIBTIC)
@@ -228,7 +227,7 @@ if(ANDROID)
     list(APPEND SYS_LIBS log)
 endif()
 set(MONO_LIBS archive freetype harfbuzz jpeg webp webpdemux z)
-if(ANDROID)
+if(NOT (APPLE OR EMULATE_READER))
     list(APPEND STATIC_LIBS lzma)
 endif()
 declare_dependency(
@@ -262,9 +261,7 @@ target_link_libraries(pthread INTERFACE Threads::Threads)
 declare_dependency(sqlite::sqlite3 MONOLIBTIC sqlite3)
 
 # srell
-add_library(srell INTERFACE)
-target_include_directories(srell INTERFACE ${THIRDPARTY_DIR}/srell)
-add_library(srell::srell ALIAS srell)
+declare_dependency(srell::srell)
 
 # turbo
 if(MONOLIBTIC)
@@ -277,8 +274,13 @@ declare_dependency(utf8proc::utf8proc MONOLIBTIC utf8proc)
 # xxhash
 declare_dependency(xxhash::xxhash MONOLIBTIC xxhash)
 
+# xz
+declare_dependency(xz::lzma_static STATIC lzma)
+
 # zlib
 declare_dependency(zlib::z MONOLIBTIC z)
+declare_dependency(zlib::z_static STATIC z)
 
 # zstd
 declare_dependency(zstd::zstd MONOLIBTIC zstd)
+declare_dependency(zstd::zstd_static STATIC zstd)

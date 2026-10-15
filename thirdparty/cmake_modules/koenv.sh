@@ -103,12 +103,7 @@ extract_archive() { (
     mkdir "${sourcedir}.tmp" || return 1
     oldpwd="${PWD}"
     cd "${sourcedir}.tmp"
-    # NOTE: MSYS/MinGW: `cmake -E tar` cannot create symlinks (Windows requires
-    #       SeCreateSymbolicLinkPrivilege), so it bails out on any archive that
-    #       contains one (e.g. zstd's tests/cli-tests/bin/unzstd). MSYS' bsdtar
-    #       can emulate them via winsymlinks:lnk instead (and, unlike GNU tar,
-    #       also handles zip archives like sqlite's or certifi's wheels).
-    MSYS=winsymlinks:lnk bsdtar -xf "${archive}" || return 1
+@TAR_COMMAND@ -xf "${archive}" || return 1
     case "${archive}" in
         # Luarocks source rock, no root dir.
         *.src.rock) root='' ;;

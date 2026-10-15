@@ -27,7 +27,6 @@ extern "C" {
 #include "cre.h"
 }
 
-#include "crengine.h"
 #include "lvdocview.h"
 #include "lvimg.h"
 
@@ -1039,6 +1038,60 @@ static int getPageXPointer(lua_State *L) {
 	return 1;
 }
 
+static int getEPubCFI(lua_State *L) {
+	CreDocument *doc = (CreDocument*) luaL_checkudata(L, 1, "credocument");
+
+	ldomEPubCFI cfi(doc->text_view->getBookmark());
+	lua_pushstring(L, UnicodeToLocal(cfi.toString()).c_str());
+
+	return 1;
+}
+
+static int getPageEPubCFI(lua_State *L) {
+	CreDocument *doc = (CreDocument*) luaL_checkudata(L, 1, "credocument");
+	int pageno = luaL_checkint(L, 2);
+	bool internal = false;
+	if (lua_isboolean(L, 3)) {
+		internal = lua_toboolean(L, 3);
+	}
+	ldomEPubCFI cfi(doc->text_view->getPageBookmark(pageno - 1, true, internal));
+	lua_pushstring(L, UnicodeToLocal(cfi.toString()).c_str());
+
+	return 1;
+}
+
+static int getEPubCFIFromXPointer(lua_State *L) {
+	CreDocument *doc = (CreDocument*) luaL_checkudata(L, 1, "credocument");
+	const char *xpointer_str = luaL_checkstring(L, 2);
+
+	ldomXPointer xp = doc->dom_doc->createXPointer(lString32(xpointer_str));
+	if ( xp.isNull() ) { // Not found in document
+		return 0;
+	}
+
+	ldomEPubCFI cfi(xp);
+	lua_pushstring(L, UnicodeToLocal(cfi.toString()).c_str());
+
+	return 1;
+}
+
+static int getEPubCFIRangeFromXPointers(lua_State *L) {
+	CreDocument *doc = (CreDocument*) luaL_checkudata(L, 1, "credocument");
+	const char *start_xpointer_str = luaL_checkstring(L, 2);
+	const char *end_xpointer_str = luaL_checkstring(L, 3);
+
+	ldomXPointer start_xp = doc->dom_doc->createXPointer(lString32(start_xpointer_str));
+	ldomXPointer end_xp = doc->dom_doc->createXPointer(lString32(end_xpointer_str));
+	if ( start_xp.isNull() || end_xp.isNull() ) { // Not found in document
+		return 0;
+	}
+
+    ldomEPubCFI cfi(start_xp);
+	lua_pushstring(L, UnicodeToLocal(cfi.toRangeString(end_xp)).c_str());
+
+	return 1;
+}
+
 static int getFullHeight(lua_State *L) {
 	CreDocument *doc = (CreDocument*) luaL_checkudata(L, 1, "credocument");
 
@@ -1952,9 +2005,16 @@ static int getLinkFromPosition(lua_State *L) {
 	CreDocument *doc = (CreDocument*) luaL_checkudata(L, 1, "credocument");
 	int x = luaL_checkint(L, 2);
 	int y = luaL_checkint(L, 3);
+	// Providing forTextSelection=true may give more chances of success to
+	// the link coherency checks done by frontend (eg. with negative text
+	// indent and the link rect being outside of its paragraph rect).
+	bool forTextSelection = false;
+	if (lua_isboolean(L, 4)) {
+		forTextSelection = lua_toboolean(L, 4);
+	}
 
 	lvPoint pt(x, y);
-	ldomXPointer p = doc->text_view->getNodeByPoint(pt, true);
+	ldomXPointer p = doc->text_view->getNodeByPoint(pt, true, forTextSelection);
 	ldomXPointer a_p;
 	lString32 href = p.getHRef(a_p);
 	lua_pushstring(L, UnicodeToLocal(href).c_str());
@@ -2100,6 +2160,13 @@ static int getTextFromPositions(lua_State *L) {
     if (lua_isboolean(L, 8)) {
         includeImages = lua_toboolean(L, 8);
     }
+    // By default, we extend the selection to include the full words at start
+    // and end. Allow frontend to disable it (which might be welcome with
+    // languages like Thai that don't use spaces to separate words).
+    bool grabWords = true;
+    if (lua_isboolean(L, 9)) {
+        grabWords = lua_toboolean(L, 9);
+    }
 
     LVDocView *tv = doc->text_view;
 
@@ -2203,7 +2270,10 @@ static int getTextFromPositions(lua_State *L) {
     // printf("  after step1 end   %s\n", UnicodeToLocal(r.getEnd().toString()).c_str());
 
     // Step 2: grab complete words on each side
-    if ( not_panning ) {
+    if ( !grabWords ) {
+        // Explicitely disabled
+    }
+    else if ( not_panning ) {
         // Not panning: select the whole word (if any)
         if ( !r.getStart().isVisibleWordStart() ) {
             // Start (included in the selection) is not the start of a word: grab
@@ -2741,6 +2811,23 @@ static int getNearestWordFromPosition(lua_State *L) {
         return 1;
     }
 
+    return 0;
+}
+
+static int getLangTagForTextFromPosition(lua_State *L) {
+    CreDocument *doc = (CreDocument*) luaL_checkudata(L, 1, "credocument");
+    int x = luaL_checkint(L, 2);
+    int y = luaL_checkint(L, 3);
+
+    lvPoint pt(x, y);
+    ldomXPointer p = doc->text_view->getNodeByPoint(pt, true, true);
+    if ( p.isNull() )
+        return 0;
+    TextLangCfg * lang_cfg = TextLangMan::getTextLangCfg(p.getNode());
+    if ( lang_cfg ) {
+        lua_pushstring(L, UnicodeToLocal(lang_cfg->getLangTag()).c_str());
+        return 1;
+    }
     return 0;
 }
 
@@ -3792,6 +3879,10 @@ static int drawCurrentPage(lua_State *L) {
 	if (lua_isboolean(L, 6)) {
 		dithering = lua_toboolean(L, 6);
 	}
+	bool invert_colors = invert_images;
+	if (lua_isboolean(L, 7)) {
+		invert_colors = lua_toboolean(L, 7);
+	}
 
 	int w = bb->w;
 	int h = bb->h;
@@ -3806,6 +3897,7 @@ static int drawCurrentPage(lua_State *L) {
 		 * Blitbuffer.TYPE_BBRGB32, see CreDocument:drawCurrentView */
 		LVColorDrawBuf drawBuf(w, h, bb->data, 32);
 		drawBuf.setInvertImages(invert_images);
+		drawBuf.setInvertColors(invert_colors);
 		drawBuf.setSmoothScalingImages(smooth_scaling);
 		doc->text_view->Draw(drawBuf, false);
 		drawn_images_count = drawBuf.getDrawnImagesCount();
@@ -4379,6 +4471,10 @@ static const struct luaL_Reg credocument_meth[] = {
     {"getCurrentPercent", getCurrentPercent},
     {"getXPointer", getXPointer},
     {"getPageXPointer", getPageXPointer},
+    {"getEPubCFI", getEPubCFI},
+    {"getPageEPubCFI", getPageEPubCFI},
+    {"getEPubCFIFromXPointer", getEPubCFIFromXPointer},
+    {"getEPubCFIRangeFromXPointers", getEPubCFIRangeFromXPointers},
     {"getPageOffsetX", getPageOffsetX},
     {"getPageStartY", getPageStartY},
     {"getPageHeight", getPageHeight},
@@ -4452,6 +4548,7 @@ static const struct luaL_Reg credocument_meth[] = {
     {"getWordBoxesFromPositions", getWordBoxesFromPositions},
     {"getImageDataFromPosition", getImageDataFromPosition},
     {"getNearestWordFromPosition", getNearestWordFromPosition},
+    {"getLangTagForTextFromPosition", getLangTagForTextFromPosition},
     {"getDocumentFileContent", getDocumentFileContent},
     {"getTextFromXPointer", getTextFromXPointer},
     {"getHTMLFromXPointer", getHTMLFromXPointer},

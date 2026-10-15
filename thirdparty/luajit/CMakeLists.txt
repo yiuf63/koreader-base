@@ -4,11 +4,10 @@ set(BINARY_DIR ${SOURCE_DIR})
 list(APPEND PATCH_FILES koreader-luajit-makefile-tweaks.patch)
 # Enable table.pack & table.unpack w/o the rest of the -DLUAJIT_ENABLE_LUA52COMPAT baggage...
 list(APPEND PATCH_FILES koreader-luajit-enable-table_pack.patch)
-# Windows system messages arrive in the system ANSI code page (GBK on a Chinese
-# system) while Lua strings are UTF-8, so any reported OS error is mojibake —
-# including the text for a failed `ffi.load`/`require`.
-list(APPEND PATCH_FILES koreader-luajit-utf8-system-messages.patch)
-
+list(APPEND PATCH_FILES
+    koreader-luajit-utf8-system-messages.patch
+    ffi.libc.patch
+)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     # Debugging is a go!
     list(APPEND PATCH_CMD COMMAND ${ISED} "s|#CCDEBUG= -g|CCDEBUG= -g|" src/Makefile)
@@ -81,6 +80,8 @@ else()
     list(APPEND BUILD_ARGS TARGET_SONAME=${SONAME} INSTALL_SONAME=${SONAME})
 endif()
 
+list(APPEND BUILD_ARGS LJ_LIBC_NAME=${LIBC_TYPE})
+
 list(APPEND BUILD_CMD COMMAND make ${BUILD_ARGS} amalg)
 
 list(APPEND INSTALL_CMD COMMAND make ${BUILD_ARGS} install PREFIX=${STAGING_DIR})
@@ -123,7 +124,7 @@ endif()
 append_tree_install_commands(INSTALL_CMD src/jit jit)
 
 external_project(
-    DOWNLOAD GIT 194d7f2d635a11193177f0ed820ae419148f0b70
+    DOWNLOAD GIT c6ffc141a8762b41703f9287d63d93622a13dd8f
     https://github.com/LuaJIT/LuaJIT
     PATCH_FILES ${PATCH_FILES}
     PATCH_COMMAND ${PATCH_CMD}

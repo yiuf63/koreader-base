@@ -3,6 +3,9 @@
 require("ffi").cdef[[
 static const unsigned LZMA_FILTERS_MAX = 4;
 static const unsigned LZMA_STREAM_HEADER_SIZE = 12;
+enum {
+  LZMA_VLI_UNKNOWN = (uint64_t)-1,
+};
 typedef struct {
   void *(*alloc)(void *, size_t, size_t);
   void (*free)(void *, void *);
@@ -47,6 +50,7 @@ typedef struct {
   lzma_vli id;
   void *options;
 } lzma_filter;
+void lzma_filters_free(lzma_filter *, const lzma_allocator *);
 typedef struct {
   uint32_t version;
   lzma_vli backward_size;

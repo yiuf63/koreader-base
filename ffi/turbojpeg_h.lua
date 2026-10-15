@@ -1,6 +1,7 @@
 -- Automatically generated with ffi-cdecl.
 
 require("ffi").cdef[[
+static const unsigned TURBOJPEG_VERSION_NUMBER = 3002000;
 enum TJINIT {
   TJINIT_COMPRESS,
   TJINIT_DECOMPRESS,
@@ -14,6 +15,8 @@ enum TJSAMP {
   TJSAMP_440,
   TJSAMP_411,
   TJSAMP_441,
+  TJSAMP_410,
+  TJSAMP_24,
   TJSAMP_UNKNOWN = -1,
 };
 enum TJPF {
@@ -61,8 +64,10 @@ enum TJPARAM {
 };
 typedef void *tjhandle;
 tjhandle tj3Init(int);
+tjhandle tj3InitVersion(int, int);
 int tj3Set(tjhandle, int, int);
 int tj3Get(tjhandle, int);
+char *tj3GetErrorStr(tjhandle);
 int tj3Compress8(tjhandle, const unsigned char *, int, int, int, int, unsigned char **, size_t *);
 int tj3DecompressHeader(tjhandle, const unsigned char *, size_t);
 int tj3Decompress8(tjhandle, const unsigned char *, size_t, unsigned char *, int, int);

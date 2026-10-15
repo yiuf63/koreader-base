@@ -14,6 +14,29 @@ if(CMAKE_HOST_APPLE)
     set(PRINTF_QS "'%s'")
 endif()
 list(JOIN WGET " " WGET_COMMAND)
+
+# Which tar to use when unpacking a downloaded archive.
+#
+# `cmake -E tar` is the default and is fine where it works, but on Windows it
+# refuses any archive containing a symlink: creating one needs
+# SeCreateSymbolicLinkPrivilege, and such archives are real here (zstd ships one
+# under tests/cli-tests/). MSYS' bsdtar emulates them when `MSYS` says so, and
+# also handles the zip archives some dependencies come as (sqlite, certifi's
+# wheels) -- GNU tar does not.
+#
+# `bsdtar` is left unqualified so PATH decides, which is what the MSYS shell
+# running this script will resolve; `MSYS=winsymlinks:lnk` has to be set for the
+# process that does the extracting, so it belongs in the command.
+#
+# Decided at configure time rather than by probing in the script, because this
+# file is a `configure_file` template that only substitutes `@VAR@`.
+if(WIN32)
+    find_program(BSDTAR_EXECUTABLE bsdtar REQUIRED)
+    set(TAR_COMMAND "MSYS=winsymlinks:lnk bsdtar")
+else()
+    set(TAR_COMMAND "'${CMAKE_COMMAND}' -E tar")
+endif()
+
 set(KOENV ${CMAKE_BINARY_DIR}/koenv.sh)
 configure_file(${CMAKE_CURRENT_LIST_DIR}/koenv.sh ${KOENV} @ONLY)
 file(MD5 ${CMAKE_TOOLCHAIN_FILE} CMAKE_TOOLCHAIN_FILE_MD5)

@@ -76,7 +76,7 @@ endfunction()
 # KOREADER LIBRARIES. {{{
 
 # blitbuffer
-if(ANDROID OR CERVANTES OR KINDLE OR KOBO OR POCKETBOOK OR REMARKABLE OR SONY_PRSTUX OR USE_SDL)
+if(ANDROID OR BOOKEEN OR CERVANTES OR KINDLE OR KOBO OR POCKETBOOK OR REMARKABLE OR USE_SDL)
     set(EXCLUDE_FROM_ALL)
 else()
     set(EXCLUDE_FROM_ALL EXCLUDE_FROM_ALL)
@@ -149,7 +149,7 @@ declare_koreader_target(
     VISIBILITY hidden
 )
 function(setup_koreader_input)
-    foreach(PLATFORM CERVANTES KOBO KINDLE LEGACY REMARKABLE SONY_PRSTUX)
+    foreach(PLATFORM BOOKEEN CERVANTES KOBO KINDLE LEGACY REMARKABLE)
         if(${PLATFORM})
             if(PLATFORM STREQUAL "LEGACY")
                 set(PLATFORM KINDLE_LEGACY)
@@ -276,6 +276,19 @@ declare_koreader_target(
     SOURCES button-listen.c
 )
 
+# unpack
+if(NOT (ANDROID OR APPLE OR EMULATE_READER))
+    set(EXCLUDE_FROM_ALL)
+else()
+    set(EXCLUDE_FROM_ALL EXCLUDE_FROM_ALL)
+endif()
+declare_koreader_target(
+    unpack TYPE executable
+    DEPENDS libarchive::libarchive_static xz::lzma_static zlib::z_static zstd::zstd_static m
+    ${EXCLUDE_FROM_ALL}
+    SOURCES unpack.c
+)
+
 # }}}
 
 # MONOLIBTIC. {{{
@@ -293,6 +306,9 @@ if(MONOLIBTIC)
     endif()
     if(KINDLE)
         list(APPEND DEPENDS openlipclua::libopenlipclua)
+    endif()
+    if(NOT (APPLE OR EMULATE_READER))
+        list(APPEND DEPENDS xz::lzma_static)
     endif()
     declare_koreader_target(
         koreader-monolibtic TYPE library

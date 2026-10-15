@@ -140,7 +140,7 @@ describe("mupdf module", function()
             doc:writeDocument(out_pdf)
             page:addMarkupAnnotation(annotation_quadpoints, 1, ffi.C.PDF_ANNOT_HIGHLIGHT)
             local annot = page:getMarkupAnnotation(annotation_quadpoints, 1)
-            page:deleteMarkupAnnotation(annot)
+            page:deleteAnnotation(annot)
             page:close()
             doc:writeDocument(out_pdf)
             doc:close()
@@ -246,6 +246,21 @@ describe("mupdf module", function()
         page:draw(dc, bb, 0, 0)
         local saturated = bb:getPixel(50, 50):getColorRGB24()
         assert.True(original ~= saturated)
+        doc:close()
+    end)
+
+    it("should open document from text", function()
+        local doc = M.openDocumentFromText([[
+        <html>
+          <head>
+            <title>Testing</title>
+          </head>
+          <body>
+            <h1>Header</h1>
+            <p>Lorem ipsum.</p>
+          <hr>
+          </body>
+        </html>]], "html", "spec/base/unit/data")
         doc:close()
     end)
 end)

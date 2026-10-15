@@ -1960,7 +1960,7 @@ function BB_mt.__index:paintCircle(center_x, center_y, r, c, w)
     local r2 = r - w
     local x2 = 0
     local y2 = r2
-    local delta2 = 5/4 - r
+    local delta2 = 5/4 - r2
 
     -- draw two axles
     for tmp_y = r, r2+1, -1 do
@@ -2039,7 +2039,7 @@ function BB_mt.__index:paintRoundedCorner(off_x, off_y, w, h, bw, r, c, anti_ali
         local r2 = r - bw
         local x2 = 0
         local y2 = r2
-        local delta2 = 5/4 - r
+        local delta2 = 5/4 - r2
 
         while x < y do
             -- decrease y if we are out of circle
@@ -2395,8 +2395,9 @@ function BB4_mt.__index:writePNG(filename)
     local bbdump = BB.new(w, h, TYPE_BB8, nil, w, w)
     bbdump:blitFrom(self)
 
-    Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, bbdump.data), w, h, 1)
+    local ok, err = Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, bbdump.data), w, h, 1)
     bbdump:free()
+    return ok, err
 end
 
 function BB8_mt.__index:writePNG(filename)
@@ -2409,8 +2410,9 @@ function BB8_mt.__index:writePNG(filename)
     local bbdump = BB.new(w, h, TYPE_BB8, nil, w, w)
     bbdump:blitFrom(self)
 
-    Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, bbdump.data), w, h, 1)
+    local ok, err = Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, bbdump.data), w, h, 1)
     bbdump:free()
+    return ok, err
 end
 
 function BB8A_mt.__index:writePNG(filename)
@@ -2421,8 +2423,9 @@ function BB8A_mt.__index:writePNG(filename)
     local bbdump = BB.new(w, h, TYPE_BB8A, nil, w * 2, w)
     bbdump:blitFrom(self)
 
-    Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, bbdump.data), w, h, 2)
+    local ok, err = Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, bbdump.data), w, h, 2)
     bbdump:free()
+    return ok, err
 end
 
 function BBRGB16_mt.__index:writePNG(filename)
@@ -2433,8 +2436,9 @@ function BBRGB16_mt.__index:writePNG(filename)
     local bbdump = BB.new(w, h, TYPE_BBRGB24, nil, w * 3, w)
     bbdump:blitFrom(self)
 
-    Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, bbdump.data), w, h, 3)
+    local ok, err = Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, bbdump.data), w, h, 3)
     bbdump:free()
+    return ok, err
 end
 
 function BBRGB24_mt.__index:writePNG(filename, bgr)
@@ -2448,8 +2452,9 @@ function BBRGB24_mt.__index:writePNG(filename, bgr)
     local bbdump = BB.new(w, h, TYPE_BBRGB24, nil, w * 3, w)
     bbdump:blitFrom(self)
 
-    Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, bbdump.data), w, h, 3)
+    local ok, err = Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, bbdump.data), w, h, 3)
     bbdump:free()
+    return ok, err
 end
 
 function BBRGB32_mt.__index:writePNG(filename, bgr)
@@ -2463,8 +2468,9 @@ function BBRGB32_mt.__index:writePNG(filename, bgr)
     local bbdump = BB.new(w, h, TYPE_BBRGB32, nil, w * 4, w)
     bbdump:blitFrom(self)
 
-    Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, bbdump.data), w, h, 4)
+    local ok, err = Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, bbdump.data), w, h, 4)
     bbdump:free()
+    return ok, err
 end
 
 -- Crap manual fallback when a have a BGR <-> RGB swap to handle...
@@ -2485,35 +2491,46 @@ function BB_mt.__index:writePNGFromBGR(filename)
             offset = offset + 3
         end
     end
-    Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, mem), w, h, 3)
+    local ok, err = Png.encodeToFile(filename, ffi.cast(uint8pt_rodata, mem), w, h, 3)
     C.free(cdata)
+    return ok, err
 end
 
 local Jpeg -- lazy load ffi/jpeg
 
 function BB_mt.__index:getBufferData()
-    local w, h = self:getWidth(), self:getHeight()
-    local bbdump, source_ptr, stride
-    if self:getType() == TYPE_BBRGB24 then
-        source_ptr = ffi.cast(uint8pt, self.data)
-        stride = self.stride
+    local n
+    local bbdump
+    local bbtype = self:getType()
+    if bbtype == TYPE_BBRGB32 then
+        bbdump = self
+        n = 4
+    elseif bbtype == TYPE_BBRGB24 then
+        bbdump = self
+        n = 3
     else
-        bbdump = BB.new(w, h, TYPE_BBRGB24, nil)
+        bbdump = BB.new(self.w, self.h, TYPE_BBRGB24, nil)
         bbdump:blitFrom(self)
-        source_ptr = ffi.cast(uint8pt, bbdump.data)
-        stride = bbdump.stride
+        n = 3
     end
-    return bbdump, source_ptr, w, stride, h
+    return bbdump, n
 end
 
 function BB_mt.__index:writeBMP(filename, grayscale)
     if not Jpeg then Jpeg = require("ffi/jpeg") end
 
-    local bbdump, source_ptr, w, stride, h = self:getBufferData()
+    local bbdump, n
+    if grayscale then
+        bbdump = BB.new(self.w, self.h, TYPE_BB8)
+        bbdump:blitFrom(self)
+        n = 1
+    else
+        bbdump, n = self:getBufferData()
+   end
 
-    Jpeg.writeBMP(filename, source_ptr, w, stride, h, grayscale)
+    Jpeg.writeBMP(filename, ffi.cast(uint8pt, bbdump.data), bbdump.w, bbdump.h, n, bbdump.stride)
 
-    if bbdump then
+    if bbdump ~= self then
         bbdump:free()
     end
 end
@@ -2521,11 +2538,11 @@ end
 function BB_mt.__index:writeJPG(filename, quality)
     if not Jpeg then Jpeg = require("ffi/jpeg") end
 
-    local bbdump, source_ptr, w, stride, h = self:getBufferData()
+    local bbdump, n = self:getBufferData()
 
-    Jpeg.encodeToFile(filename, source_ptr, w, stride, h, quality) -- Colortype default, subsample default
+    Jpeg.encodeToFile(filename, ffi.cast(uint8pt, bbdump.data), bbdump.w, bbdump.h, n, quality, bbdump.stride)
 
-    if bbdump then
+    if bbdump ~= self then
         bbdump:free()
     end
 end

@@ -1,7 +1,7 @@
-diff --git a/crengine/crengine/qimagescale/qimagescale.cpp b/crengine/crengine/qimagescale/qimagescale.cpp
+diff --git a/crengine/qimagescale/qimagescale.cpp b/crengine/qimagescale/qimagescale.cpp
 index 4bc3a5e3..d4afc317 100644
---- a/crengine/crengine/qimagescale/qimagescale.cpp
-+++ b/crengine/crengine/qimagescale/qimagescale.cpp
+--- a/crengine/qimagescale/qimagescale.cpp
++++ b/crengine/qimagescale/qimagescale.cpp
 @@ -769,7 +769,9 @@ unsigned char* qSmoothScaleImage(const unsigned char* __restrict src, int sw, in
          return buffer;
  
@@ -13,10 +13,10 @@ index 4bc3a5e3..d4afc317 100644
      buffer = (unsigned char* __restrict) malloc(dw * dh * 4);
      if (buffer == nullptr) {
          std::cerr << "qSmoothScaleImage: out of memory, returning null!" << std::endl;
-diff --git a/crengine/crengine/src/lvdrawbuf.cpp b/crengine/crengine/src/lvdrawbuf.cpp
+diff --git a/crengine/src/lvdrawbuf.cpp b/crengine/src/lvdrawbuf.cpp
 index 3b7fef89..00ddb0d3 100644
---- a/crengine/crengine/src/lvdrawbuf.cpp
-+++ b/crengine/crengine/src/lvdrawbuf.cpp
+--- a/crengine/src/lvdrawbuf.cpp
++++ b/crengine/src/lvdrawbuf.cpp
 @@ -3251,6 +3251,13 @@ void LVColorDrawBuf::DrawRescaled(const LVDrawBuf * __restrict src, int x, int y
  lUInt8 * LVColorDrawBuf::GetScanLine( int y ) const
  {
@@ -31,10 +31,10 @@ index 3b7fef89..00ddb0d3 100644
      return _data + _rowsize * (_dy-1-y);
  #else
      return _data + _rowsize * y;
-diff --git a/crengine/crengine/src/lvstream.cpp b/crengine/crengine/src/lvstream.cpp
+diff --git a/crengine/src/lvstream.cpp b/crengine/src/lvstream.cpp
 index 00bfa702..92ad864c 100644
---- a/crengine/crengine/src/lvstream.cpp
-+++ b/crengine/crengine/src/lvstream.cpp
+--- a/crengine/src/lvstream.cpp
++++ b/crengine/src/lvstream.cpp
 @@ -46,6 +46,7 @@
  extern "C" {
  #include <windows.h>
@@ -184,10 +184,10 @@ index 00bfa702..92ad864c 100644
  #else
      if ( rmdir( UnicodeToUtf8( filename ).c_str() ) )
          return false;
-diff --git a/crengine/crengine/src/lvstring.cpp b/crengine/crengine/src/lvstring.cpp
+diff --git a/crengine/src/lvstring.cpp b/crengine/src/lvstring.cpp
 index c98bad22..2eb94277 100644
---- a/crengine/crengine/src/lvstring.cpp
-+++ b/crengine/crengine/src/lvstring.cpp
+--- a/crengine/src/lvstring.cpp
++++ b/crengine/src/lvstring.cpp
 @@ -3285,23 +3285,57 @@ lString32 ByteToUnicode( const lString8 & str, const lChar32 * table )
  
  #if !defined(__SYMBIAN32__) && defined(_WIN32)
@@ -306,11 +306,11 @@ index c98bad22..2eb94277 100644
     }
     return dst;
  }
-diff --git a/crengine/crengine/src/lvstring_win32_compat.h b/crengine/crengine/src/lvstring_win32_compat.h
+diff --git a/crengine/src/lvstring_win32_compat.h b/crengine/src/lvstring_win32_compat.h
 new file mode 100644
 index 00000000..a3358876
 --- /dev/null
-+++ b/crengine/crengine/src/lvstring_win32_compat.h
++++ b/crengine/src/lvstring_win32_compat.h
 @@ -0,0 +1,62 @@
 +#ifndef LVSTRING_WIN32_COMPAT_H
 +#define LVSTRING_WIN32_COMPAT_H
@@ -374,10 +374,10 @@ index 00000000..a3358876
 +
 +#endif
 +#endif
-diff --git a/crengine/crengine/src/lvstsheet.cpp b/crengine/crengine/src/lvstsheet.cpp
+diff --git a/crengine/src/lvstsheet.cpp b/crengine/src/lvstsheet.cpp
 index 5d094ba6..821a5b2b 100644
---- a/crengine/crengine/src/lvstsheet.cpp
-+++ b/crengine/crengine/src/lvstsheet.cpp
+--- a/crengine/src/lvstsheet.cpp
++++ b/crengine/src/lvstsheet.cpp
 @@ -4071,7 +4071,10 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                          }
                          buf<<(lUInt32) (prop_code | importance | parse_important(decl));
@@ -400,3 +400,24 @@ index 5d094ba6..821a5b2b 100644
                      }
                      else {
                          decl = orig_pos;
+diff --git a/crengine/include/crsetup.h.cmake b/crengine/include/crsetup.h.cmake
+index 22bfb425..4880e069 100644
+--- a/crengine/include/crsetup.h.cmake
++++ b/crengine/include/crsetup.h.cmake
+@@ -1,9 +1,15 @@
+ #ifndef CRSETUP_H_INCLUDED
+ #define CRSETUP_H_INCLUDED
+ 
+-/// Yes, even on macOS (Windows is unsupported)…
++/// macOS still goes through the POSIX paths, but Windows has its own
++/// code -- and MinGW predefines `_WIN32`, so defining these there sends
++/// crengine down branches that do not build (see
++/// `GetCurrentTimeMillis`). Upstream's stock configuration simply declares
++/// Windows unsupported; leave them unset for it instead.
++#ifndef _WIN32
+ #define LINUX 1
+ #define _LINUX 1
++#endif
+ 
+ /// Compression.
+ #define USE_ZLIB                             @USE_ZLIB@

@@ -115,15 +115,21 @@ function S.open(w, h, x, y)
 
     SDL.SDL_SetMainReady()
 
+    -- Enable the following line to tell SDL to call `dbus_shutdown` on quit:
+    -- this useful to get rid of some memory leaks when running under valgrind.
+    -- NOTE: as per SDL documentation, other libraries may be using DBUS too,
+    -- so it's not a good idea to use it unconditionally.
+    -- SDL.SDL_SetHint("SDL_SHUTDOWN_DBUS_ON_QUIT", "1");
+
     if os.getenv("XDG_CURRENT_DESKTOP") == "Lomiri" then
         -- Prefer X11 over Wayland on Ubuntu Touch.
         -- Cf. https://github.com/koreader/koreader/issues/4960#issuecomment-4519022077
         SDL.SDL_SetHint("SDL_VIDEO_DRIVER", "x11")
     end
 
-    if SDL.SDL_Init(bit.bor(SDL.SDL_INIT_VIDEO,
-                            SDL.SDL_INIT_EVENTS,
-                            SDL.SDL_INIT_GAMEPAD)) == 0 then
+    if not SDL.SDL_Init(bit.bor(SDL.SDL_INIT_VIDEO,
+                                SDL.SDL_INIT_EVENTS,
+                                SDL.SDL_INIT_GAMEPAD)) then
         error("Cannot initialize SDL: " .. ffi.string(SDL.SDL_GetError()))
     end
 

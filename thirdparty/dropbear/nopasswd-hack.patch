@@ -1,5 +1,5 @@
 diff --git a/src/runopts.h b/src/runopts.h
-index 166ad4a..d62378b 100644
+index 166ad4a7..d62378b3 100644
 --- a/src/runopts.h
 +++ b/src/runopts.h
 @@ -123,6 +123,7 @@ typedef struct svr_runopts {
@@ -11,7 +11,7 @@ index 166ad4a..d62378b 100644
  	char * authorized_keys_dir;
  
 diff --git a/src/svr-authpasswd.c b/src/svr-authpasswd.c
-index 899a8ab..410d53d 100644
+index 899a8abb..410d53da 100644
 --- a/src/svr-authpasswd.c
 +++ b/src/svr-authpasswd.c
 @@ -80,6 +80,15 @@ void svr_auth_password(int valid_user) {
@@ -31,7 +31,7 @@ index 899a8ab..410d53d 100644
  		dropbear_log(LOG_WARNING,
  				"Too-long password attempt for '%s' from %s",
 diff --git a/src/svr-runopts.c b/src/svr-runopts.c
-index b5fa462..465d467 100644
+index 2baec6bd..e286682f 100644
 --- a/src/svr-runopts.c
 +++ b/src/svr-runopts.c
 @@ -108,6 +108,7 @@ static void printhelp(const char * progname) {

@@ -17,7 +17,7 @@ executors:
 
   base: &BASE_EXE
     docker:
-      - image: koreader/kobase:2.0.0-22.04
+      - image: koreader/kobase:5.0.0-22.04
 
   # Emulators. {{{
 
@@ -36,7 +36,7 @@ executors:
 
   emu_clang_ninja:
     docker:
-      - image: koreader/kobase-clang:2.0.0-22.04
+      - image: koreader/kobase-clang:5.0.0-22.04
     environment:
       <<: *EMU_ENV_LST
       KODEBUG: ""
@@ -48,7 +48,7 @@ executors:
 
   android-arm: &ANDROID_EXE
     docker:
-      - image: koreader/koandroid:2.0.0-22.04
+      - image: koreader/koandroid:5.0.0-22.04
     environment:
       TARGET: "android-arm"
 
@@ -57,15 +57,21 @@ executors:
     environment:
       TARGET: "android-x86"
 
+  bookeen:
+    docker:
+      - image: koreader/kobookeen:5.0.0-22.04
+    environment:
+      TARGET: "bookeen"
+
   cervantes:
     docker:
-      - image: koreader/kocervantes:2.0.0-22.04
+      - image: koreader/kocervantes:5.0.0-22.04
     environment:
       TARGET: "cervantes"
 
   kindle: &KINDLE_EXE
     docker:
-      - image: koreader/kokindle:2.0.0-22.04
+      - image: koreader/kokindle:5.0.0-22.04
     environment:
       TARGET: "kindle"
 
@@ -81,21 +87,20 @@ executors:
 
   kobo:
     docker:
-      - image: koreader/kokobo:2.0.0-22.04
+      - image: koreader/kokobo:5.0.0-22.04
     environment:
       TARGET: "kobo"
 
-  pocketbook:
+  pocketbook: &POCKETBOOK_EXE
     docker:
-      - image: koreader/kopb:2.0.0-22.04
+      - image: koreader/kopb:5.0.0-22.04
     environment:
       TARGET: "pocketbook"
 
-  sony-prstux:
-    docker:
-      - image: koreader/kodeb:2.0.0-22.04
+  pocketbookhf:
+    <<: *POCKETBOOK_EXE
     environment:
-      TARGET: "sony-prstux"
+      TARGET: "pocketbookhf"
 
   # }}}
 
@@ -325,8 +330,8 @@ workflows:
             - emu_gcc_ninja_debug
 
       - build_and_test:
-          name: sony-prstux
-          executor: sony-prstux
+          name: pocketbookhf
+          executor: pocketbookhf
           requires:
             - emu_gcc_ninja_debug
 

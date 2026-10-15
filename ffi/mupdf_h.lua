@@ -26,7 +26,7 @@ typedef struct fz_font fz_font;
 void fz_install_external_font_funcs(fz_context *);
 typedef struct fz_archive fz_archive;
 fz_archive *mupdf_open_directory(fz_context *, const char *);
-void *mupdf_drop_archive(fz_context *, fz_archive *);
+void fz_drop_archive(fz_context *, fz_archive *);
 typedef struct {
   int refs;
   unsigned char *data;
@@ -35,7 +35,7 @@ typedef struct {
   int shared;
 } fz_buffer;
 fz_buffer *mupdf_new_buffer_from_shared_data(fz_context *, const unsigned char *, size_t);
-void *mupdf_drop_buffer(fz_context *, fz_buffer *);
+void fz_drop_buffer(fz_context *, fz_buffer *);
 typedef struct {
   void *user;
   void *(*malloc)(void *, size_t);
@@ -97,7 +97,7 @@ int fz_needs_password(fz_context *, fz_document *);
 int fz_authenticate_password(fz_context *, fz_document *, const char *);
 void fz_drop_document(fz_context *, fz_document *);
 int mupdf_count_pages(fz_context *, fz_document *);
-void *mupdf_layout_document(fz_context *, fz_document *, float, float, float);
+bool mupdf_layout_document(fz_context *, fz_document *, float, float, float);
 int fz_lookup_metadata(fz_context *, fz_document *, const char *, char *, size_t);
 fz_page *mupdf_load_page(fz_context *, fz_document *, int);
 fz_rect *mupdf_fz_bound_page(fz_context *, fz_page *, fz_rect *);
@@ -119,10 +119,9 @@ fz_link *mupdf_load_links(fz_context *, fz_page *);
 fz_location *mupdf_fz_resolve_link(fz_context *, fz_document *, const char *, float *, float *, fz_location *);
 void fz_drop_link(fz_context *, fz_link *);
 int mupdf_fz_page_number_from_location(fz_context *, fz_document *, fz_location *);
-void *mupdf_fz_location_from_page_number(fz_context *, fz_document *, fz_location *, int);
 fz_outline *mupdf_load_outline(fz_context *, fz_document *);
 void fz_drop_outline(fz_context *, fz_outline *);
-void *mupdf_drop_stream(fz_context *, fz_stream *);
+void fz_drop_stream(fz_context *, fz_stream *);
 fz_stream *mupdf_open_memory(fz_context *, const unsigned char *, size_t);
 typedef struct fz_stext_char fz_stext_char;
 struct fz_stext_char {
@@ -235,10 +234,10 @@ fz_colorspace *fz_device_rgb(fz_context *);
 fz_colorspace *fz_device_bgr(fz_context *);
 fz_device *mupdf_new_draw_device(fz_context *, const fz_matrix *, fz_pixmap *);
 fz_device *mupdf_new_bbox_device(fz_context *, fz_rect *);
-fz_device *mupdf_new_isolated_smask_device(fz_context *, fz_device *);
-int mupdf_page_has_smask(fz_context *, fz_page *);
-void *mupdf_run_page(fz_context *, fz_page *, fz_device *, const fz_matrix *, fz_cookie *);
-void fz_close_device(fz_context *, fz_device *);
+fz_device *mupdf_new_transparency_mask_device(fz_context *, fz_device *);
+int mupdf_page_has_transparency_mask(fz_context *, fz_page *);
+bool mupdf_run_page(fz_context *, fz_page *, fz_device *, const fz_matrix *, fz_cookie *);
+bool mupdf_close_device(fz_context *, fz_device *);
 void fz_drop_device(fz_context *, fz_device *);
 enum pdf_annot_type {
   PDF_ANNOT_TEXT,
@@ -277,15 +276,18 @@ typedef struct pdf_document pdf_document;
 int mupdf_pdf_annot_type(fz_context *, pdf_annot *);
 const char *mupdf_pdf_annot_contents(fz_context *, pdf_annot *);
 pdf_annot *mupdf_pdf_create_annot(fz_context *, pdf_page *, enum pdf_annot_type);
-void *mupdf_pdf_delete_annot(fz_context *, pdf_page *, pdf_annot *);
-void *mupdf_pdf_set_annot_quad_points(fz_context *, pdf_annot *, int, const fz_quad *);
-void *mupdf_pdf_set_annot_contents(fz_context *, pdf_annot *, const char *);
-void *mupdf_pdf_set_annot_color(fz_context *, pdf_annot *, int, const float[4]);
-void *mupdf_pdf_set_annot_opacity(fz_context *, pdf_annot *, float);
+bool mupdf_pdf_delete_annot(fz_context *, pdf_page *, pdf_annot *);
+bool mupdf_pdf_set_annot_quad_points(fz_context *, pdf_annot *, int, const fz_quad *);
+bool mupdf_pdf_set_annot_contents(fz_context *, pdf_annot *, const char *);
+bool mupdf_pdf_set_annot_color(fz_context *, pdf_annot *, int, const float[4]);
+bool mupdf_pdf_set_annot_opacity(fz_context *, pdf_annot *, float);
+bool mupdf_pdf_set_annot_ink_list(fz_context *, pdf_annot *, int, const int *, const fz_point *);
+bool mupdf_pdf_set_annot_border_width(fz_context *, pdf_annot *, float);
+bool mupdf_pdf_update_annot(fz_context *, pdf_annot *);
 pdf_annot *mupdf_pdf_first_annot(fz_context *, pdf_page *);
 pdf_annot *mupdf_pdf_next_annot(fz_context *, pdf_annot *);
 int mupdf_pdf_annot_quad_point_count(fz_context *, pdf_annot *);
-void *mupdf_pdf_annot_quad_point(fz_context *, pdf_annot *, int, fz_quad *);
+bool mupdf_pdf_annot_quad_point(fz_context *, pdf_annot *, int, fz_quad *);
 typedef struct {
   int do_incremental;
   int do_pretty;
@@ -310,7 +312,7 @@ typedef struct {
   int compression_effort;
   int do_labels;
 } pdf_write_options;
-void *mupdf_pdf_save_document(fz_context *, pdf_document *, const char *, pdf_write_options *);
+bool mupdf_pdf_save_document(fz_context *, pdf_document *, const char *, pdf_write_options *);
 fz_alloc_context *mupdf_get_my_alloc_context();
 int mupdf_get_cache_size();
 int mupdf_error_code(fz_context *);

@@ -21,7 +21,7 @@ list(APPEND CMAKE_ARGS
     -DENABLE_LIBB2=FALSE
     -DENABLE_LIBXML2=FALSE
     -DENABLE_LZ4=FALSE
-    -DENABLE_LZMA=$<BOOL:${ANDROID}>
+    -DENABLE_LZMA=$<NOT:$<OR:$<BOOL:${APPLE}>,$<BOOL:${EMULATE_READER}>>>
     -DENABLE_OPENSSL=FALSE
     -DENABLE_PCRE2POSIX=FALSE
     -DENABLE_PCREPOSIX=FALSE
@@ -50,8 +50,8 @@ if(NOT MONOLIBTIC)
 endif()
 
 external_project(
-    DOWNLOAD URL dd48e73d519e309ce08ce76a004fb0e0
-    https://github.com/libarchive/libarchive/releases/download/v3.8.7/libarchive-3.8.7.tar.xz
+    DOWNLOAD URL 535e3afec5f61d493f0b1b9e8bcf7539
+    https://github.com/libarchive/libarchive/releases/download/v3.8.9/libarchive-3.8.9.tar.xz
     CMAKE_ARGS ${CMAKE_ARGS}
     PATCH_FILES ${PATCH_FILES}
     PATCH_COMMAND ${PATCH_CMD}

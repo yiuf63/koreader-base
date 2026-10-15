@@ -4,6 +4,8 @@
 
 cdecl_const(LZMA_FILTERS_MAX);
 cdecl_const(LZMA_STREAM_HEADER_SIZE);
+// `#define LZMA_VLI_UNKNOWN UINT64_MAX`: `cdecl_const(…)` is limited to 32bits values,
+cdecl_out(const_LZMA_VLI_UNKNOWN, enum { LZMA_VLI_UNKNOWN = (uint64_t)-1 };);
 
 cdecl_type(lzma_allocator);
 cdecl_type(lzma_bool);
@@ -24,6 +26,7 @@ cdecl_func(lzma_check_size);
 /// filter {{{
 
 cdecl_type(lzma_filter);
+cdecl_func(lzma_filters_free);
 
 /// }}}
 

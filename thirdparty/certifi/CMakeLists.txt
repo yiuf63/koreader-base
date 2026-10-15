@@ -4,7 +4,7 @@ set(BINARY_DIR ${SOURCE_DIR})
 list(APPEND INSTALL_CMD COMMAND ${CMAKE_COMMAND} -E copy_if_different certifi/cacert.pem ${OUTPUT_DIR}/data/ca-bundle.crt)
 
 external_project(
-    DOWNLOAD URL 09ac8b5eddc520f3f2d5e6f7ee949553
-    https://files.pythonhosted.org/packages/59/8c/57e832b7af6d7c5abe66eb3fbe3a3a32f4d11ea23a1aa7131371035be991/certifi-2026.5.20-py3-none-any.whl
+    DOWNLOAD URL edeeb8218c0de1993d874d818064553c
+    https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl
     INSTALL_COMMAND ${INSTALL_CMD}
 )

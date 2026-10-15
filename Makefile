@@ -14,19 +14,13 @@ endif
 # we disable parallelisation for this top-level Makefile.
 .NOTPARALLEL:
 
-define build_info
-$(info ************ Building for MACHINE: "$(MACHINE)" **********)
-$(info ************ PATH: "$(PATH)" **********)
-$(info ************ CHOST: "$(CHOST)" **********)
-$(info ************ NINJA: $(strip $(NINJA) $(NINJAFLAGS)) ($(NINJA_VERSION)) **********)
-$(info ************ MAKE: $(strip $(MAKE) $(MFLAGS)) ($(MAKE_VERSION)) **********)
-endef
-
 PHONY += $(addprefix $(BASE_PREFIX),all clean distclean fetchthirdparty re reinstall test uninstall)
-PHONY += bininfo bincheck buildstats info %-re setup skeleton test-data
+PHONY += base bininfo bincheck buildstats %-re setup skeleton test-data
 SOUND += cache-key build/% $(OUTPUT_DIR)/% $(STAGING_DIR)/bincheck/%
 
 # Main rules. {{{
+
+base: $(BASE_PREFIX)all
 
 $(BASE_PREFIX)all: $(BUILD_ENTRYPOINT)
 
@@ -35,9 +29,6 @@ $(BASE_PREFIX)clean:
 
 $(BASE_PREFIX)distclean:
 	rm -rf $(dir $(filter $(KOR_BASE)/build/%,$(OUTPUT_DIR))) $(wildcard $(THIRDPARTY_DIR)/*/build $(THIRDPARTY_DIR)/spec/*/build)
-
-info:
-	$(strip $(build_info))
 
 $(BASE_PREFIX)re: $(BASE_PREFIX)clean
 	$(MAKE) $(BASE_PREFIX)all
@@ -84,7 +75,10 @@ endif
 # CMake build interface. {{{
 
 setup $(BUILD_ENTRYPOINT): $(CMAKE_KOVARS) $(CMAKE_TCF) $(MESON_CROSS_TOOLCHAIN) $(MESON_HOST_TOOLCHAIN)
-	$(strip $(build_info))
+	$(info ************ Building for MACHINE: "$(MACHINE)" **********)
+	$(info ************ PATH: "$(PATH)" **********)
+	$(info ************ NINJA: $(strip $(NINJA) $(NINJAFLAGS)) ($(NINJA_VERSION)) **********)
+	$(info ************ MAKE: $(strip $(MAKE) $(MFLAGS)) ($(MAKE_VERSION)) **********)
 	$(if $(CCACHE),env CCACHE_DISABLE=1 )$(CMAKE) $(CMAKE_FLAGS) -S $(KOR_BASE)/cmake -B $(CMAKE_DIR)
 
 define write_file
@@ -173,6 +167,8 @@ skeleton: $(strip $(test_data_common))
 define test_data_base
 $(OUTPUT_DIR)/data/tessdata/eng.traineddata
 $(OUTPUT_DIR)/fonts/droid/DroidSansMono.ttf
+$(OUTPUT_DIR)/fonts/urw/NimbusRomNo9L-Med.cff
+$(OUTPUT_DIR)/fonts/urw/NimbusRomNo9L-Reg.cff
 $(OUTPUT_DIR)/spec/base
 endef
 
@@ -189,16 +185,18 @@ $(TESSDATA_FILE):
 	mkdir -p $(dir $(TESSDATA_FILE))
 	$(call wget_and_validate,$(TESSDATA_FILE),$(TESSDATA_FILE_URL),$(TESSDATA_FILE_SHA1))
 
-DROID_FONT = $(THIRDPARTY_DIR)/fonts/build/downloads/DroidSansMono.ttf
-DROID_FONT_URL = https://github.com/koreader/koreader-fonts/raw/master/droid/$(notdir $(DROID_FONT))
-DROID_FONT_SHA1 = 0b75601f8ef8e111babb6ed11de6573f7178ce44
+FONT_SHA1_droid/DroidSansMono.ttf   = 0b75601f8ef8e111babb6ed11de6573f7178ce44
+FONT_SHA1_urw/NimbusRomNo9L-Med.cff = 8c93500267bb1c6444012ba3b7ab807dc24255b4
+FONT_SHA1_urw/NimbusRomNo9L-Reg.cff = eac7ba4fa32b41eb0312ccd91f7723d98864eb55
 
-$(OUTPUT_DIR)/fonts/droid/DroidSansMono.ttf: $(DROID_FONT) | $(OUTPUT_DIR)/fonts/
-	$(SYMLINK) $(dir $(DROID_FONT)) $(OUTPUT_DIR)/fonts/droid
+FONT_BASE_URL = https://github.com/koreader/koreader-fonts/raw/046976988aa33639d60d6ffd25c7a0ff50b72ac0
 
-$(DROID_FONT):
-	mkdir -p $(dir $(DROID_FONT))
-	$(call wget_and_validate,$(DROID_FONT),$(DROID_FONT_URL),$(DROID_FONT_SHA1))
+$(OUTPUT_DIR)/fonts/%: $(THIRDPARTY_DIR)/fonts/build/downloads/% | $(OUTPUT_DIR)/fonts/
+	$(SYMLINK) $(patsubst %/,%,$(dir $<) $(dir $@))
+
+$(THIRDPARTY_DIR)/fonts/build/downloads/%:
+	mkdir -p $(dir $@)
+	$(call wget_and_validate,$@,$(FONT_BASE_URL)/$*,$(FONT_SHA1_$*))
 
 endif
 
@@ -267,6 +265,7 @@ else ifneq (,$(ANDROID))
   BINCHECK_LD_PATH += $(call sysroot_libdir,libc++_shared.so)
 else
   BINCHECK_LD_PATH += $(call sysroot_libdir,libc.so.6)
+  BINCHECK_LD_PATH += $(call sysroot_libdir,libcrypt.so)
 endif
 
 bincheck: $(BINCHECK_DEPS)

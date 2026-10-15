@@ -175,22 +175,42 @@ check_libc_fn_exists(iconv iconv.h HAS_ICONV)
 # Detect if libc provides gettext support.
 check_libc_fn_exists(ngettext libintl.h HAS_GETTEXT)
 
+# Determine C library type
+if(NOT DEFINED CACHE{LIBC_TYPE})
+    if(ANDROID)
+        set(LIBC_TYPE Bionic CACHE INTERNAL "libc type")
+    elseif(APPLE)
+        set(LIBC_TYPE macOS CACHE INTERNAL "libc type")
+    else()
+        execute_process(COMMAND ${CMAKE_C_COMPILER} -E -P ${CMAKE_CURRENT_SOURCE_DIR}/libc_type_check.c RESULT_VARIABLE RET OUTPUT_VARIABLE OUT OUTPUT_STRIP_TRAILING_WHITESPACE)
+        if(NOT RET EQUAL 0 OR NOT OUT MATCHES "(^|\n)libc_type=([A-Za-z]+)$")
+            message(FATAL_ERROR "could not determine libc type")
+        endif()
+        set(LIBC_TYPE ${CMAKE_MATCH_2} CACHE INTERNAL "libc type")
+        if(NOT LIBC_TYPE STREQUAL "GNU" AND NOT LIBC_TYPE STREQUAL "musl")
+            message(FATAL_ERROR "unsupported libc type: ${LIBC_TYPE}")
+        endif()
+    endif()
+    message(STATUS "Found libc type: ${LIBC_TYPE}")
+endif()
+
 # We'll want to ship the shared STL library on some platforms.
 #
 # We don't want to rely on `-static-libstdc++`, as it risks breaking the ODR. (Also, it was a pain to deal with because
 # of libtool, c.f., https://www.gnu.org/software/libtool/manual/html_node/Stripped-link-flags.html#Stripped-link-flags).
 #
 if(NOT ((ANDROID AND MONOLIBTIC) OR APPLE OR EMULATE_READER OR USE_SDL))
+    set(STL_INSTALL_CMD)
     if(ANDROID)
         set(STL_NAME libc++_shared.so)
     else()
         set(STL_NAME libstdc++.so.6)
     endif()
     find_compiler_lib_path(STL_PATH ${STL_NAME} REQUIRED)
-    append_binary_install_command(CMD_LIST ${STL_PATH} DESTINATION ${OUTPUT_DIR}/libs)
+    append_binary_install_command(STL_INSTALL_CMD ${STL_PATH} DESTINATION ${OUTPUT_DIR}/libs)
     add_custom_command(
         OUTPUT ${OUTPUT_DIR}/libs/${STL_NAME}
-        COMMAND ${CMD_LIST}
+        COMMAND ${STL_INSTALL_CMD}
         COMMENT "Installing '${STL_NAME}'"
         DEPENDS ${STL_PATH}
         VERBATIM
@@ -267,20 +287,18 @@ declare_project(
     lunasvg
     md4c
     nanosvg
+    srell
     utf8proc
     xxhash
     zlib
     zstd
-    SOURCE_DIR thirdparty/kpvcrlib
+    SOURCE_DIR thirdparty/kpvcrlib/crengine
 )
 set(crengine_CMAKE_BINARY_DIR ${OUTPUT_DIR}/thirdparty/crengine)
 set(crengine_BINARY_DIR ${crengine_CMAKE_BINARY_DIR}/build)
 
 # cpu_features
 declare_project(thirdparty/cpu_features EXCLUDE_FROM_ALL)
-
-# curl
-declare_project(thirdparty/curl DEPENDS libressl zlib EXCLUDE_FROM_ALL)
 
 # czmq
 if(NOT WIN32)
@@ -373,11 +391,11 @@ declare_project(thirdparty/kobo-usbms ${EXCLUDE_FROM_ALL})
 declare_project(thirdparty/koreader-lfs DEPENDS luajit)
 
 # leptonica
-declare_project(thirdparty/leptonica DEPENDS libpng)
+declare_project(thirdparty/leptonica DEPENDS libpng zlib)
 
 # libarchive
 set(DEPENDS zlib zstd)
-if(ANDROID)
+if(NOT (APPLE OR EMULATE_READER))
     list(APPEND DEPENDS xz)
 endif()
 declare_project(thirdparty/libarchive DEPENDS ${DEPENDS})
@@ -386,7 +404,7 @@ declare_project(thirdparty/libarchive DEPENDS ${DEPENDS})
 declare_project(thirdparty/libjpeg-turbo)
 
 # libk2pdfopt
-declare_project(thirdparty/libk2pdfopt DEPENDS leptonica libpng tesseract zlib)
+declare_project(thirdparty/libk2pdfopt DEPENDS leptonica tesseract)
 
 # libpng
 declare_project(thirdparty/libpng DEPENDS zlib EXCLUDE_FROM_ALL)
@@ -497,6 +515,9 @@ declare_project(thirdparty/popen-noshell EXCLUDE_FROM_ALL)
 # proxy-libintl
 declare_project(thirdparty/proxy-libintl EXCLUDE_FROM_ALL)
 
+# rsync
+declare_project(thirdparty/rsync EXCLUDE_FROM_ALL DEPENDS libressl xxhash zlib zstd)
+
 # sdcv
 # NOTE: sdcv pulls in glib, by far the heaviest and most Unix-centric
 # dependency in the tree, which is not wired up for MinGW yet. Skip the
@@ -546,13 +567,11 @@ declare_project(thirdparty/sdl3 ${EXCLUDE_FROM_ALL})
 # sqlite
 declare_project(thirdparty/sqlite)
 
-# tar
-if(NOT (ANDROID OR APPLE OR EMULATE_READER OR WIN32))
-    set(EXCLUDE_FROM_ALL)
-else()
-    set(EXCLUDE_FROM_ALL EXCLUDE_FROM_ALL)
-endif()
-declare_project(thirdparty/tar ${EXCLUDE_FROM_ALL})
+# srell
+declare_project(
+    thirdparty/srell
+    SOURCE_DIR thirdparty/srell
+)
 
 # tesseract
 set(DEPENDS leptonica)
@@ -584,14 +603,6 @@ declare_project(thirdparty/zlib)
 
 # zstd
 declare_project(thirdparty/zstd)
-
-# zsync2
-if(CERVANTES OR KINDLE OR KOBO OR POCKETBOOK OR REMARKABLE OR SONY_PRSTUX)
-    set(EXCLUDE_FROM_ALL)
-else()
-    set(EXCLUDE_FROM_ALL EXCLUDE_FROM_ALL)
-endif()
-declare_project(thirdparty/zsync2 DEPENDS curl libressl zlib ${EXCLUDE_FROM_ALL})
 
 # }}}
 
@@ -709,6 +720,14 @@ function(ffi_target NAME OUTPUT INPUT)
     add_dependencies(${NAME}-ffi ${TGT})
 endfunction()
 
+# bookeen
+if(BOOKEEN)
+    set(EXCLUDE_FROM_ALL)
+else()
+    set(EXCLUDE_FROM_ALL EXCLUDE_FROM_ALL)
+endif()
+ffi_target(bookeen mxcfb_bookeen_h.lua mxcfb_bookeen_decl.c ${EXCLUDE_FROM_ALL})
+
 # cervantes
 if(CERVANTES)
     set(EXCLUDE_FROM_ALL)
@@ -810,7 +829,7 @@ ffi_target(linux einkfb_h.lua einkfb_decl.c ${EXCLUDE_FROM_ALL})
 ffi_target(linux inotify_h.lua inotify_decl.c ${EXCLUDE_FROM_ALL})
 ffi_target(linux linux_fb_h.lua linux_fb_decl.c ${EXCLUDE_FROM_ALL})
 ffi_target(linux linux_input_h.lua linux_input_decl.c ${EXCLUDE_FROM_ALL} ARGS -r ffi/posix_h)
-ffi_target(linux rtc_h.lua rtc_cdecl.c ${EXCLUDE_FROM_ALL})
+ffi_target(linux rtc_h.lua rtc_cdecl.c ${EXCLUDE_FROM_ALL} ARGS -r ffi/posix_h)
 
 # lodepng
 ffi_target(lodepng lodepng_h.lua lodepng_decl.c)
@@ -826,6 +845,42 @@ else()
 endif()
 ffi_target(pocketbook mxcfb_pocketbook_h.lua mxcfb_pb_decl.c ${EXCLUDE_FROM_ALL})
 
+# posix
+set(VERSIONS
+    android_arm android_arm64 android_x86 android_x64
+    linux_gnu_arm linux_gnu_arm64 linux_gnu_x64
+    linux_musl_arm linux_musl_arm64 linux_musl_x64
+    macos
+)
+add_custom_target(
+    posix-ffi
+    COMMAND ./utils/gen_merged_cdecl_h.py ffi/posix_h.lua ffi-cdecl/posix_h_.lua platform ffi-cdecl ${VERSIONS}
+    COMMENT "Generating 'ffi/posix_h.lua'"
+    VERBATIM
+    WORKING_DIRECTORY ${BASE_DIR}
+)
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)")
+    set(LUAJIT_ARCH "arm64")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm")
+    set(LUAJIT_ARCH "arm")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)")
+    set(LUAJIT_ARCH "x64")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(i[3-6]86|x86)")
+    set(LUAJIT_ARCH "x86")
+else()
+    message(FATAL_ERROR "unsupported CMAKE_SYSTEM_PROCESSOR value: ${CMAKE_SYSTEM_PROCESSOR}")
+endif()
+if(ANDROID)
+    set(POSIX_PLATFORM android_${LUAJIT_ARCH})
+elseif(APPLE)
+    set(POSIX_PLATFORM macos)
+else()
+    string(TOLOWER linux_${LIBC_TYPE}_${LUAJIT_ARCH} POSIX_PLATFORM)
+endif()
+set(POSIX_PLATFORM ffi-cdecl/posix_h_${POSIX_PLATFORM}.lua)
+string(TOUPPER LIBC_${LIBC_TYPE} POSIX_LIBC_FLAG)
+ffi_target(posix ${POSIX_PLATFORM} posix_cdecl.c ARGS -M -W -D ${POSIX_LIBC_FLAG} EXCLUDE_FROM_ALL)
+
 # remarkable
 if(REMARKABLE)
     set(EXCLUDE_FROM_ALL)
@@ -834,6 +889,7 @@ else()
 endif()
 ffi_target(remarkable mxcfb_remarkable_h.lua mxcfb_remarkable_decl.c ${EXCLUDE_FROM_ALL})
 ffi_target(remarkable qtfb_h.lua qtfb_cdecl.c ${EXCLUDE_FROM_ALL})
+ffi_target(remarkable blight_h.lua blight_cdecl.c ${EXCLUDE_FROM_ALL})
 
 # sdl3
 ffi_target(sdl3 SDL3_h.lua SDL3_decl.c ARGS -d sdl3)
@@ -859,5 +915,47 @@ ffi_target(zstd zstd_h.lua zstd_decl.c ARGS -d libzstd)
 endif()
 
 # }}}
+
+# Summary {{{
+
+set(SUMMARY "\n")
+
+function(summary_section NAME ENV_VARS)
+    string(APPEND SUMMARY "\n${NAME}:\n\n")
+    foreach(VAR IN LISTS ARGN)
+        set(HEADER "${VAR}                    ")
+        string(SUBSTRING "${HEADER}" 0 20 HEADER)
+        set(VAL "")
+        if(ENV_VARS)
+            if(DEFINED ENV{${VAR}})
+                set(VAL "$ENV{${VAR}}")
+            endif()
+        elseif(DEFINED ${VAR})
+            set(VAL "${${VAR}}")
+        endif()
+        string(APPEND SUMMARY "    ${HEADER}: ${VAL}\n")
+    endforeach()
+    set(SUMMARY ${SUMMARY} PARENT_SCOPE)
+endfunction()
+
+summary_section("Target machine" FALSE CHOST CC CFLAGS CXX CXXFLAGS LD LDFLAGS DYNLIB_LDFLAGS AR NM OBJCOPY RANLIB RC STRIP LIB_EXT VECTO_CFLAGS)
+summary_section("Build machine"  FALSE HOSTCFLAGS HOSTCXX)
+summary_section("Miscellaneous"  FALSE KOTASYNC MONOLIBTIC USE_LJ_WPACLIENT USE_SDL WANT_SIMD GLIBC_VERSION_MAX KEEP_DEBUG)
+summary_section("CI"             TRUE  CI GITHUB_ACTIONS)
+summary_section("OS"             FALSE ANDROID APPLE LINUX)
+summary_section("Platform"       FALSE EMULATE_READER CERVANTES KINDLE KOBO LEGACY POCKETBOOK REMARKABLE)
+summary_section("Luajit"         FALSE SKIP_LUAJIT_BIN USE_LUAJIT_LIB)
+if(ANDROID)
+    summary_section("Android"    TRUE ANDROID_ARCH NDKABI ANDROID_HOME ANDROID_SDK_ROOT ANDROID_NDK_HOME ANDROID_NDK_ROOT)
+elseif(APPLE)
+    summary_section("macOS"      TRUE MACOSX_DEPLOYMENT_TARGET)
+endif()
+
+if(NOT DEFINED CACHE{SUMMARY_SHOWN})
+    message(STATUS "${SUMMARY}")
+    set(SUMMARY_SHOWN TRUE CACHE INTERNAL "summary shown")
+endif()
+
+# }}
 
 # vim: foldmethod=marker foldlevel=0
