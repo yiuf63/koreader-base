@@ -89,9 +89,17 @@ endif()
 if(APPLE)
     list(APPEND LIBRARIES "-framework CoreFoundation")
 endif()
-if(NOT HAS_ICONV)
-    # NOTE: the static libdjvu references miniconv on platforms without a
-    #       system iconv (see the djvulibre spec), so consumers need it too.
+if(WIN32)
+    # NOTE: without a system iconv, `libdjvu`'s `GUnicode` uses miniconv, so
+    #       consumers have to link it too (see the djvulibre spec, which adds the
+    #       dependency under the same condition). MinGW has no iconv at all.
+    #
+    #       Windows rather than `NOT HAS_ICONV`: this file is included from
+    #       `koreader_targets.cmake`, which `cmake/CMakeLists.txt` pulls in at
+    #       line 10 -- while `check_libc_fn_exists(... HAS_ICONV)` does not run
+    #       until line 178. The variable is therefore always empty here, and a
+    #       `NOT HAS_ICONV` test is true on every platform, which sent the
+    #       emulator looking for a `libiconv.a` that nothing builds.
     list(APPEND LIBRARIES ${STAGING_DIR}/lib/libiconv.a)
 endif()
 declare_dependency(djvulibre::djvulibre MONOLIBTIC jpeg STATIC djvulibre LIBRARIES ${LIBRARIES})

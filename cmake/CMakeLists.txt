@@ -33,6 +33,11 @@ function(declare_project DIR)
         # of.
         set(${NAME}_EXPLICIT_SOURCE_DIR TRUE PARENT_SCOPE)
     else()
+        # Set it either way: `setup_project` reads this unconditionally, and an
+        # undefined variable there is a configure-time warning ("uninitialized
+        # variable 'miniconv_EXPLICIT_SOURCE_DIR'") plus a false value that only
+        # happens to be the right one.
+        set(${NAME}_EXPLICIT_SOURCE_DIR FALSE PARENT_SCOPE)
         set(_SOURCE_DIR ${BASE_DIR}/source)
     endif()
     get_filename_component(_SOURCE_DIR ${_SOURCE_DIR} ABSOLUTE BASE_DIR ${CMAKE_SOURCE_DIR}/..)
