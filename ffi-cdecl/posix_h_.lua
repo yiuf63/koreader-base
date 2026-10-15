@@ -14,6 +14,15 @@ else
 end
 local platform = ({{ {1} }})[platform_str]
 if not platform then
+    -- Windows has no entry: it is not a POSIX platform, and this module's job
+    -- is to describe the POSIX interfaces a port needs. Upstream's stock
+    -- configuration never reaches here (it does not build for Windows), so the
+    -- declarations it would otherwise guard are simply not made -- which is
+    -- what callers on Windows expect, since those symbols live in the CRT
+    -- under different names (`_strdup`, `_fileno`, …).
+    if ffi.os == "Windows" then
+        return
+    end
     error("unsupported platform: " .. platform_str)
 end
 

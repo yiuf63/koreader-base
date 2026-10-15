@@ -19,10 +19,12 @@ list(APPEND PATCH_FILES
     relink_on_xlibs_change.patch
     # Fix symbols visiblity.
     visibility.patch
-list(APPEND PATCH_FILES
+    # The Windows-only include path for libarchive headers is wrong (they are
+    # installed flat, like everywhere else).
     win32_libarchive_headers.patch
+    # Backport addition of `passthrough` member to `fz_device` (from b20077eb2).
     passthrough_device.patch
-))
+)
 
 # Remove unnecessary vendored thirdparty libraries.
 list(APPEND PATCH_CMD COMMAND rm -rf

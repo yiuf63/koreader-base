@@ -181,6 +181,12 @@ if(NOT DEFINED CACHE{LIBC_TYPE})
         set(LIBC_TYPE Bionic CACHE INTERNAL "libc type")
     elseif(APPLE)
         set(LIBC_TYPE macOS CACHE INTERNAL "libc type")
+    elseif(WIN32)
+        # MinGW links against the Microsoft CRT, not glibc or musl, so the
+        # probe below (which reads `<features.h>`) cannot work: that header does
+        # not exist. There is nothing to detect -- the CRT ships with the
+        # toolchain and is selected by the target triple.
+        set(LIBC_TYPE MSVC CACHE INTERNAL "libc type")
     else()
         execute_process(COMMAND ${CMAKE_C_COMPILER} -E -P ${CMAKE_CURRENT_SOURCE_DIR}/libc_type_check.c RESULT_VARIABLE RET OUTPUT_VARIABLE OUT OUTPUT_STRIP_TRAILING_WHITESPACE)
         if(NOT RET EQUAL 0 OR NOT OUT MATCHES "(^|\n)libc_type=([A-Za-z]+)$")
@@ -879,7 +885,14 @@ else()
 endif()
 set(POSIX_PLATFORM ffi-cdecl/posix_h_${POSIX_PLATFORM}.lua)
 string(TOUPPER LIBC_${LIBC_TYPE} POSIX_LIBC_FLAG)
-ffi_target(posix ${POSIX_PLATFORM} posix_cdecl.c ARGS -M -W -D ${POSIX_LIBC_FLAG} EXCLUDE_FROM_ALL)
+
+# Windows is not a POSIX platform: there is no `posix_h_windows_x64.lua` to
+# generate against, and nothing here should make one. The committed
+# `ffi/posix_h.lua` is what runs there, and it returns early (see
+# `ffi-cdecl/posix_h_.lua`).
+if(NOT WIN32)
+    ffi_target(posix ${POSIX_PLATFORM} posix_cdecl.c ARGS -M -W -D ${POSIX_LIBC_FLAG} EXCLUDE_FROM_ALL)
+endif()
 
 # remarkable
 if(REMARKABLE)

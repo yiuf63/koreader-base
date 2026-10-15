@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 17cf7f64..bf3f03f7 100644
+index 17cf7f6..e07b380 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -9,7 +9,7 @@
@@ -39,6 +39,15 @@ index 17cf7f64..bf3f03f7 100644
  endif()
  target_link_libraries(libtesseract PRIVATE ${LIB_Ws2_32} ${LIB_pthread})
  if(OpenMP_CXX_FOUND)
+@@ -831,7 +838,7 @@ set_target_properties(
+   libtesseract
+   PROPERTIES
+     OUTPUT_NAME
+-    tesseract$<$<BOOL:${WIN32}>:${VERSION_MAJOR}${VERSION_MINOR}$<$<CONFIG:DEBUG>:d>>
++    tesseract$<$<BOOL:${WIN32}>:-${VERSION_MAJOR}${VERSION_MINOR}$<$<CONFIG:DEBUG>:d>>
+ )
+ 
+ target_link_libraries(libtesseract PUBLIC ${Leptonica_LIBRARIES})
 @@ -849,18 +856,20 @@ if(WIN32
  endif()
  
@@ -77,18 +86,8 @@ index 17cf7f64..bf3f03f7 100644
  if (MSVC)
    install(FILES $<TARGET_PDB_FILE:${PROJECT_NAME}> DESTINATION bin OPTIONAL)
  endif()
-@@ -838,7 +838,7 @@ set_target_properties(
-   libtesseract
-   PROPERTIES
-     OUTPUT_NAME
--    tesseract$<$<BOOL:${WIN32}>:${VERSION_MAJOR}${VERSION_MINOR}$<$<CONFIG:DEBUG>:d>>
-+    tesseract$<$<BOOL:${WIN32}>:-${VERSION_MAJOR}${VERSION_MINOR}$<$<CONFIG:DEBUG>:d>>
- )
- 
- target_link_libraries(libtesseract PUBLIC ${Leptonica_LIBRARIES})
-
 diff --git a/tesseract.pc.cmake b/tesseract.pc.cmake
-index dd801aeb..2190e450 100644
+index dd801ae..2190e45 100644
 --- a/tesseract.pc.cmake
 +++ b/tesseract.pc.cmake
 @@ -8,6 +8,6 @@ Description: An OCR Engine that was developed at HP Labs (1985-1995) and Google

@@ -1,4 +1,4 @@
--- Automatically generated with ./utils/gen_merged_cdecl_h.py.
+-- Automatically generated with utils/gen_merged_cdecl_h.py.
 
 local ffi = require("ffi")
 
@@ -14,6 +14,15 @@ else
 end
 local platform = ({ android_arm=0x1, android_arm64=0x2, android_x64=0x4, android_x86=0x8, linux_gnu_arm=0x10, linux_gnu_arm64=0x20, linux_gnu_x64=0x40, linux_musl_arm=0x80, linux_musl_arm64=0x100, linux_musl_x64=0x200, macos=0x400 })[platform_str]
 if not platform then
+    -- Windows has no entry: it is not a POSIX platform, and this module's job
+    -- is to describe the POSIX interfaces a port needs. Upstream's stock
+    -- configuration never reaches here (it does not build for Windows), so the
+    -- declarations it would otherwise guard are simply not made -- which is
+    -- what callers on Windows expect, since those symbols live in the CRT
+    -- under different names (`_strdup`, `_fileno`, …).
+    if ffi.os == "Windows" then
+        return
+    end
     error("unsupported platform: " .. platform_str)
 end
 
@@ -1143,8 +1152,6 @@ int fclose(FILE *);
 int ferror(FILE *);
 int fflush(FILE *);
 int fileno(FILE *);
-int _fileno(FILE *);
-int _commit(int);
 FILE *fopen(const char *, const char *);
 int fputs(const char *, FILE *);
 size_t fread(void *, size_t, size_t, FILE *);
@@ -1196,11 +1203,6 @@ int strcasecmp(const char *, const char *);
 int strcmp(const char *, const char *);
 int strcoll(const char *, const char *);
 char *strdup(const char *);
-char *strndup(const char *, size_t);
-/* NOTE: the MSVC/UCRT spelling of these; the MinGW CRT has no
-   `strdup`/`strndup`, only the underscore-prefixed names. */
-char *_strdup(const char *);
-char *_strndup(const char *, size_t);
 char *strerror(int);
 int strncasecmp(const char *, const char *, size_t);
 size_t strnlen(const char *, size_t);
