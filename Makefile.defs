@@ -881,6 +881,24 @@ endif
 CMAKE_TCF = $(CMAKE_DIR)/toolchain.cmake
 CMAKE_FLAGS += -DCMAKE_TOOLCHAIN_FILE='$(abspath $(CMAKE_TCF))'
 
+# The Objective-C compiler, as a full path.
+#
+# Computed here rather than inside `cmake_toolchain` below, because everything in
+# that block is written verbatim into `toolchain.cmake`: a Make assignment in it
+# would end up in the CMake file (`Parse error. Expected "(", got unquoted
+# argument with text ":="`).
+#
+# A full path is needed because CMake resolves `CMAKE_C_COMPILER` itself but only
+# hands `CMAKE_OBJC_COMPILER` to `enable_language(OBJC)`, which SDL 3.4.18's
+# `cmake/macros.cmake` calls whenever it builds the Cocoa backend -- and that does
+# not fall back to a `PATH` search the same way. A bare `clang` fails there with
+#
+#     The CMAKE_OBJC_COMPILER: clang is not a full path and was not found in
+#     the PATH.
+#
+# Falling back to `REALCC` keeps this a no-op where the language is never enabled.
+ko_objc_cc = $(or $(shell command -v $(firstword $(REALCC)) 2>/dev/null),$(REALCC))
+
 # Native & cross definitions.
 define cmake_toolchain
 
@@ -916,8 +934,21 @@ set(CMAKE_CXX_COMPILER $(REALCXX))
 set(CMAKE_CXX_FLAGS_INIT "$(strip $(CXXFLAGS))")
 
 # OBJC language (for SDL3 on macOS).
+#
+# `ko_objc_cc` is resolved *outside* this `define` block (above): everything in
+# here is written verbatim into `toolchain.cmake`, so a Make assignment inside it
+# would land in the CMake file as a syntax error.
+#
+# It is a full path rather than a bare name, unlike the C and C++ compilers
+# above: CMake looks those up itself, but `CMAKE_OBJC_COMPILER` only reaches
+# `enable_language(OBJC)` -- which SDL 3.4.18's `cmake/macros.cmake` triggers
+# whenever it builds the Cocoa backend -- and that does not fall back to a `PATH`
+# search the same way. With a bare `clang` it fails outright:
+#
+#     The CMAKE_OBJC_COMPILER: clang is not a full path and was not found in
+#     the PATH.
 $(if $(CCACHE),set(CMAKE_OBJC_COMPILER_LAUNCHER $(CCACHE)))
-set(CMAKE_OBJC_COMPILER $(REALCC))
+set(CMAKE_OBJC_COMPILER $(ko_objc_cc))
 
 # Release only flags: prevent CMake from messing
 # with our custom optimization level and flags.
