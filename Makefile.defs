@@ -897,7 +897,11 @@ CMAKE_FLAGS += -DCMAKE_TOOLCHAIN_FILE='$(abspath $(CMAKE_TCF))'
 #     the PATH.
 #
 # Falling back to `REALCC` keeps this a no-op where the language is never enabled.
-ko_objc_cc = $(or $(shell command -v $(firstword $(REALCC)) 2>/dev/null),$(REALCC))
+#
+# `:=`, not `=`: a recursively-expanded `$(shell ...)` runs on *every* reference,
+# and `Makefile.defs` is re-read by each sub-make. Forking is expensive on
+# Windows, and the build there already spends a lot of time in it.
+ko_objc_cc := $(or $(shell command -v $(firstword $(REALCC)) 2>/dev/null),$(REALCC))
 
 # Native & cross definitions.
 define cmake_toolchain
