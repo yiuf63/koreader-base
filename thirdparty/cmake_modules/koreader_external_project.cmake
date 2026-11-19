@@ -8,6 +8,24 @@ if(POLICY CMP0175)
     cmake_policy(SET CMP0175 NEW)
 endif()
 
+# One-slot pool for the `configure` steps.
+#
+# Two `cmake` configure steps running at once deadlock under MSYS2: each runs its
+# own `try_compile`, which forks, and the forks stop making progress while the
+# other is in flight. Observed on the CI Windows runner with `-j2`: `ninja` had
+# `leptonica` and `zstd` configuring simultaneously, both `cmake` parents alive
+# and parked inside their `CMakeScratch/TryCompile-*` directories with no
+# compiler child left, and no output for the remaining hour -- which is well past
+# the point where the same step finishes in ten seconds locally.
+#
+# The compiles are what the parallelism is for, and they are unaffected: this
+# only serialises `configure`, `build` and `install` are ordinary jobs. The pool
+# exists unconditionally; the name is only referenced where a generator supports
+# it, because `JOB_POOL` on `add_custom_command()` needs CMake 3.25 and Ninja.
+if(POLICY CMP0175)
+    set_property(GLOBAL PROPERTY JOB_POOLS koreader_configure_pool=1)
+endif()
+
 # Crappy macOS command line utilities strike again…
 set(PRINTF_QS "%q")
 if(CMAKE_HOST_APPLE)
@@ -98,6 +116,13 @@ function(external_project_step NAME)
         endif()
         if(DEFINED _DEPFILE)
             list(APPEND SPEC DEPFILE ${_DEPFILE})
+        endif()
+        # `configure` steps go into a one-slot pool. `JOB_POOL` on
+        # `add_custom_command()` needs CMake 3.25 and a Ninja generator; the pool
+        # name is defined unconditionally above, but referencing it where the
+        # generator cannot honour it is an error, hence the guard.
+        if(NAME STREQUAL "configure" AND POLICY CMP0175 AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.25)
+            list(APPEND SPEC JOB_POOL koreader_configure_pool)
         endif()
     else()
         if(_ONLY_ONCE OR DEFINED _TRIGGERS)
