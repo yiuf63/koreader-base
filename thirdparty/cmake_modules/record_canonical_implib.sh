@@ -101,6 +101,17 @@ stem=$(printf '%s' "$base" | sed 's/-[0-9][0-9.]*$//')      # z
 abi=$(printf '%s' "$stem" | sed 's/[0-9][0-9.]*$//')        # png
 [ -n "$abi" ] && [ "$abi" != "$stem" ] || abi=$stem
 
+# A fourth spelling: the ABI number glued to the name with no separator at all.
+# tesseract is the case -- its DLL is `libtesseract-55.dll` (the hyphen comes from
+# our OUTPUT_NAME patch, KOReader's `lib<name>-<version>.dll` convention) but the
+# archive it installs is `libtesseract55.dll.a`, built from its own
+# `${VERSION_MAJOR}${VERSION_MINOR}` with no hyphen. Neither `tesseract` nor
+# `tesseract-55` matches that, so the archive kept recording the un-hyphenated
+# name and `libk2pdfopt` linked against it ended up importing a DLL that is not
+# shipped.
+dotted=$(printf '%s' "$base" | sed 's/-\([0-9][0-9.]*\)$/\1/')   # tesseract55
+[ "$dotted" != "$base" ] || dotted=""
+
 # Every archive with a matching name, in every directory given, is rewritten —
 # not just the first. Two copies of the same archive exist when a project links
 # its own libraries, and rewriting one but not the other leaves half the tree
@@ -115,7 +126,8 @@ abi=$(printf '%s' "$stem" | sed 's/[0-9][0-9.]*$//')        # png
 candidates=""
 for dir in $lib_dirs; do
     [ -d "$dir" ] || continue
-    for s in "$stem" "$base" "$abi"; do
+    for s in "$stem" "$base" "$abi" "$dotted"; do
+        [ -n "$s" ] || continue
         for candidate in "$dir/lib$s.dll.a" "$dir/lib$s"-[0-9]*.dll.a; do
             [ -f "$candidate" ] || continue
             candidates="$candidates $candidate"
