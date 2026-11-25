@@ -37,16 +37,15 @@ index bdd19c7d..acc47e26 100644
 +    # Enable `-fvisibility-inlines-hidden`.
 +    set_target_properties(libtesseract PROPERTIES VISIBILITY_INLINES_HIDDEN TRUE)
  endif()
- @@ -851,7 +858,7 @@ set_target_properties(
+ target_link_libraries(libtesseract PRIVATE ${LIB_Ws2_32} ${LIB_pthread})
+ if(OpenMP_CXX_FOUND)
+@@ -832,5 +832,5 @@
    libtesseract
    PROPERTIES
      OUTPUT_NAME
 -    tesseract$<$<BOOL:${WIN32}>:${VERSION_MAJOR}${VERSION_MINOR}$<$<CONFIG:DEBUG>:d>>
 +    tesseract$<$<BOOL:${WIN32}>:-${VERSION_MAJOR}${VERSION_MINOR}$<$<CONFIG:DEBUG>:d>>
  )
-
-target_link_libraries(libtesseract PRIVATE ${LIB_Ws2_32} ${LIB_pthread})
- if(OpenMP_CXX_FOUND)
 @@ -851,18 +858,20 @@ if(WIN32
  endif()
  
