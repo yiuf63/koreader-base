@@ -363,9 +363,16 @@ else ifdef CHOST
   LD := $(call ensure_exe_abspath,$(call ko_chost_tool,ld))
   NM := $(call ensure_exe_abspath,$(call ko_chost_tool,nm))
   OBJCOPY := $(call ensure_exe_abspath,$(call ko_chost_tool,objcopy))
-  RC := $(call ensure_exe_abspath,$(call ko_chost_tool,windres))
   RANLIB := $(call ensure_exe_abspath,$(call ko_chost_tool,ranlib))
-  READELF := $(call ensure_exe_abspath,$(call ko_chost_tool,readelf))
+  # `RC` and `READELF` are ours, not upstream's, and must NOT go through
+  # `ensure_exe_abspath`: it is `$(error ...)` when the tool is missing, and
+  # `windres` only exists for Windows targets. Every other cross target --
+  # Kindle, Kobo, PocketBook -- would die at parse time with
+  # `*** windres not found in PATH`, which is exactly what happened. `make` only
+  # expands a recursive `=` assignment when it is used, and these are not used
+  # off Windows.
+  RC = $(call ko_chost_tool,windres)
+  READELF = $(call ko_chost_tool,readelf)
 else
   STRIP := $(call ensure_exe_abspath,strip)
   AR := $(call ensure_exe_abspath,ar)
