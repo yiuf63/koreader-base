@@ -1,17 +1,23 @@
 #!/usr/bin/env luajit
 
-local VERSION = "2.0.0"
+local VERSION = "2.1.0"
 
 local buffer = require("string.buffer")
 local ffi = require("ffi")
 
 ffi.log = function() end
 
+-- NOTE: don't rely on `ffi/posix_h`, so we can update it
+-- with ffi-cdecl when adding support for a new platform
+-- (when executing ffi-cdecl on that new platform).
+ffi.cdef[[
+void free(void *);
+]]
+
 require "ffi/loadlib"
-require "ffi/posix_h"
 require "ffi/tree_sitter_h"
 
-local ts = ffi.loadlib("tree-sitter", "0.26")
+local ts = ffi.loadlib("tree-sitter", "0.27", "tree-sitter", "0.26")
 local ts_c = ffi.loadlib("tree-sitter-c", "15.0")
 
 -- Helpers. {{{
@@ -574,7 +580,7 @@ local function _main(parser, ffi_cdecl_dir)
             return 0
         elseif a == "-W" then
             warn_only = true
-        elseif not input_file then
+        elseif not a:match("^-") and not input_file then
             input_file = a
         else
             io.stderr:write(string.format("ERROR: invalid argument “%s”\n", a))

@@ -2,6 +2,7 @@ KODEBUG ?=
 KOR_BASE ?= ../..
 
 TARGET = linux
+FFI_CDECL = 1
 VERSION := $(shell sed -nE 's/^local VERSION = "(.*)"$$/\1/p' $(KOR_BASE)/ffi-cdecl/ffi-cdecl.lua)
 
 include $(KOR_BASE)/Makefile.defs
@@ -22,7 +23,6 @@ luajit
 libs/libtree-sitter.so.*[0-9]
 libs/libtree-sitter-c.so.*[0-9]
 ffi/loadlib.lua
-ffi/posix_h.lua
 ffi/tree_sitter_h.lua
 endef
 
@@ -33,7 +33,7 @@ appdir: $(NINJA_GOALS)
 	$(call appimage_install,ffi-cdecl,ffi-cdecl.h ffi-cdecl.lua,..)
 
 appimage: appdir $(MKAPPIMAGE)
-	ARCH='$(APPIMAGE_ARCH)' VERSION='$(VERSION)' $(MKAPPIMAGE) --appimage-extract-and-run $(APPDIR) ffi-cdecl-$(VERSION)-$(APPIMAGE_ARCH).AppImage
+	$(call appimage_generate,ffi-cdecl,$(VERSION))
 
 PHONY = all appdir appimage clean re
 

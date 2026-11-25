@@ -1,6 +1,10 @@
 comma := ,
 space := $(empty) $(empty)
 
+# Expand executable name to full path.
+exe_abspath = $(firstword $(filter /%,$1) $(wildcard $(addsuffix /$1,$(subst :, ,$(PATH)))))
+ensure_exe_abspath = $(or $(call exe_abspath,$1),$(error $1 not found in PATH))
+
 padded_version = $(subst $(space),0,$(shell printf '.%2s' $(subst .,$(space),$1)))
 at_least_version = $(filter $(call padded_version,$2),$(firstword $(sort $(call padded_version,$1) $(call padded_version,$2))))
 
@@ -41,7 +45,7 @@ endif
 ifeq ($(USE_NO_CCACHE), 1)
   CCACHE :=
 else
-  CCACHE := $(or $(CCACHE),$(shell command -v ccache))
+  override CCACHE := $(if $(CCACHE),$(call ensure_exe_abspath,$(CCACHE)),$(call exe_abspath,ccache))
 endif
 
 TOOLCHAIN_DIR = $(abspath $(KOR_BASE)/toolchain)
@@ -55,7 +59,7 @@ CMAKE := cmake -Wdev --warn-uninitialized
 CMAKE_VERSION := $(word 3,$(shell cmake --version))
 USING_CMAKE_3_24_OR_BETTER := $(call at_least_version,$(CMAKE_VERSION),3.24.0)
 
-NINJA := $(or $(NINJA),ninja)
+override NINJA := $(call ensure_exe_abspath,$(or $(NINJA),ninja))
 
 NINJA_VERSION := $(shell $(NINJA) --version)
 USING_NINJA_1_13_OR_BETTER := $(call at_least_version,$(NINJA_VERSION),1.13.0)
@@ -138,33 +142,16 @@ CMAKE_FLAGS = $(if $(USING_CMAKE_3_24_OR_BETTER),--fresh) -G Ninja
 ifeq ($(TARGET), arm-generic)
 	CHOST?=arm-linux-gnueabi
 else ifeq ($(TARGET), kindle)
+	CHOST?=arm-kindle5-linux-gnueabi
 	KINDLE=1
-	HAS_KINDLE5_TC:=$(shell command -v arm-kindle5-linux-gnueabi-gcc 2> /dev/null)
-	ifdef HAS_KINDLE5_TC
-		#Use the custom build TC
-		CHOST?=arm-kindle5-linux-gnueabi
-	else
-		#Use the generic linaro TC for debugging
-		CHOST?=arm-linux-gnueabi
-	endif
 	GLIBC_VERSION_MAX = 2.12
 else ifeq ($(TARGET), kindlepw2)
+	CHOST?=arm-kindlepw2-linux-gnueabi
 	KINDLE=1
-	HAS_KINDLEPW2_TC:=$(shell command -v arm-kindlepw2-linux-gnueabi-gcc 2> /dev/null)
-	ifdef HAS_KINDLEPW2_TC
-		CHOST?=arm-kindlepw2-linux-gnueabi
-	else
-		CHOST?=arm-linux-gnueabi
-	endif
 	GLIBC_VERSION_MAX = 2.12
 else ifeq ($(TARGET), kindlehf)
+	CHOST?=arm-kindlehf-linux-gnueabihf
 	KINDLE=1
-	HAS_KINDLEHF_TC:=$(shell command -v arm-kindlehf-linux-gnueabihf-gcc 2> /dev/null)
-	ifdef HAS_KINDLEHF_TC
-		CHOST?=arm-kindlehf-linux-gnueabihf
-	else
-		CHOST?=arm-linux-gnueabihf
-	endif
 	GLIBC_VERSION_MAX = 2.20
 else ifeq ($(TARGET), kindle-legacy)
 	KINDLE=1
@@ -172,33 +159,18 @@ else ifeq ($(TARGET), kindle-legacy)
 	LEGACY=1
 	GLIBC_VERSION_MAX = 2.5
 else ifeq ($(TARGET), kobo)
+	CHOST?=arm-kobo-linux-gnueabihf
 	KOBO=1
-	HAS_KOBO_TC:=$(shell command -v arm-kobo-linux-gnueabihf-gcc 2> /dev/null)
-	ifdef HAS_KOBO_TC
-		CHOST?=arm-kobo-linux-gnueabihf
-	else
-		CHOST?=arm-linux-gnueabihf
-	endif
 	USE_LJ_WPACLIENT=1
 	GLIBC_VERSION_MAX = 2.15
 else ifeq ($(TARGET), kobov4)
+	CHOST?=arm-kobov4-linux-gnueabihf
 	KOBO=1
-	HAS_KOBOV4_TC:=$(shell command -v arm-kobov4-linux-gnueabihf-gcc 2> /dev/null)
-	ifdef HAS_KOBOV4_TC
-		CHOST?=arm-kobov4-linux-gnueabihf
-	else
-		CHOST?=arm-linux-gnueabihf
-	endif
 	USE_LJ_WPACLIENT=1
 	GLIBC_VERSION_MAX = 2.19
 else ifeq ($(TARGET), kobov5)
+	CHOST?=arm-kobov5-linux-gnueabihf
 	KOBO=1
-	HAS_KOBOV5_TC:=$(shell command -v arm-kobov5-linux-gnueabihf-gcc 2> /dev/null)
-	ifdef HAS_KOBOV5_TC
-		CHOST?=arm-kobov5-linux-gnueabihf
-	else
-		CHOST?=arm-linux-gnueabihf
-	endif
 	USE_LJ_WPACLIENT=1
 	GLIBC_VERSION_MAX = 2.35
 else ifeq ($(TARGET), linux)
@@ -242,12 +214,6 @@ else ifeq ($(TARGET), win32)
 else ifeq ($(TARGET), pocketbook)
 	CHOST?=arm-pocketbook-linux-gnueabi
 	POCKETBOOK=1
-	HAS_POCKETBOOK_TC:=$(shell command -v arm-pocketbook-linux-gnueabi-gcc 2> /dev/null)
-	ifdef HAS_POCKETBOOK_TC
-		CHOST?=arm-pocketbook-linux-gnueabi
-	else
-		CHOST?=arm-linux-gnueabi
-	endif
 	GLIBC_VERSION_MAX = 2.5
 else ifeq ($(TARGET), pocketbookhf)
 	CHOST?=arm-pocketbookhf-linux-gnueabihf
@@ -262,13 +228,8 @@ else ifeq ($(TARGET), remarkable-aarch64)
 	REMARKABLE=1
 	USE_LJ_WPACLIENT=1
 else ifeq ($(TARGET), cervantes)
+	CHOST?=arm-cervantes-linux-gnueabi
 	CERVANTES=1
-	HAS_CERVANTES_TC:=$(shell command -v arm-cervantes-linux-gnueabi-gcc 2> /dev/null)
-	ifdef HAS_CERVANTES_TC
-		CHOST?=arm-cervantes-linux-gnueabi
-	else
-		CHOST?=arm-linux-gnueabi
-	endif
 	USE_LJ_WPACLIENT=1
 else ifeq ($(TARGET), bookeen)
 	CHOST?=arm-bookeen-linux-gnueabi
@@ -306,8 +267,7 @@ endif
 USE_LUAJIT_LIB = $(or $(DARWIN),$(ANDROID),$(WIN32))
 SKIP_LUAJIT_BIN = $(ANDROID)
 
-RCP := cp -R
-WGET ?= wget --no-verbose --progress=dot:giga --show-progress
+override WGET := $(call ensure_exe_abspath,$(or $(WGET),wget --no-verbose --progress=dot:giga --show-progress))
 
 define wget_and_validate
 	$(WGET) -O '$1' '$2' \
@@ -347,15 +307,15 @@ ko_chost_tool = $(or $(shell command -v $(CHOST)-$(1) >/dev/null 2>&1 && echo $(
 
 # set cross-compiler/host CC and CXX
 ifneq (,$(USE_CLANG))
+	HOSTCC:=$(call ensure_exe_abspath,clang)
+	HOSTCXX:=$(call ensure_exe_abspath,clang++)
 	ifdef CHOST
-		CC:=$(CHOST)-clang
-		CXX:=$(CHOST)-clang++
+		CC:=$(call ensure_exe_abspath,$(CHOST)-clang)
+		CXX:=$(call ensure_exe_abspath,$(CHOST)-clang++)
 	else
-		CC:=clang
-		CXX:=clang++
+		CC:=$(HOSTCC)
+		CXX:=$(HOSTCXX)
 	endif
-	HOSTCC:=clang
-	HOSTCXX:=clang++
 	# quiet flag
 	QFLAGS:=-Wno-ignored-optimization-argument -Wno-unknown-warning-option
 	# Tone down some very verbose Clang 5 warnings, too.
@@ -371,57 +331,63 @@ ifneq (,$(USE_CLANG))
 	# For dropbear's libtom...
 	QFLAGS+=-Wno-macro-redefined
 else
+	HOSTCC:=$(call ensure_exe_abspath,gcc)
+	HOSTCXX:=$(call ensure_exe_abspath,g++)
 	ifdef CHOST
-		CC:=$(CHOST)-gcc
-		CXX:=$(CHOST)-g++
+		CC:=$(call ensure_exe_abspath,$(CHOST)-gcc)
+		CXX:=$(call ensure_exe_abspath,$(CHOST)-g++)
 	else
-		CC:=gcc
-		CXX:=g++
+		CC:=$(HOSTCC)
+		CXX:=$(HOSTCXX)
 	endif
-	HOSTCC:=gcc
-	HOSTCXX:=g++
 	QFLAGS:=
 endif
 
 # set cross-compiler/host AR LD RANLIB
 ifdef ANDROID
-	STRIP:=llvm-strip
-	AR:=llvm-ar
-	LD:=ld
-	NM:=llvm-nm
-	OBJCOPY:=llvm-objcopy
-	RANLIB:=llvm-ranlib
-	READELF:=llvm-readelf
+  STRIP := $(call ensure_exe_abspath,llvm-strip)
+  AR := $(call ensure_exe_abspath,llvm-ar)
+  LD := $(call ensure_exe_abspath,ld)
+  NM := $(call ensure_exe_abspath,llvm-nm)
+  OBJCOPY := $(call ensure_exe_abspath,llvm-objcopy)
+  RANLIB := $(call ensure_exe_abspath,llvm-ranlib)
 else ifdef CHOST
-	STRIP:=$(call ko_chost_tool,strip)
-	AR:=$(call ko_chost_tool,ar)
-	# NOTE: not every MinGW toolchain ships a prefixed `ld` (MSYS2's mingw-w64
-	#       binutils only provides a plain `ld`). libtool then fails to detect
-	#       GNU ld and falls back to MSVC-style link commands (`-link -dll`),
-	#       which cannot build our DLLs at all.
-	LD:=$(call ko_chost_tool,ld)
-	NM:=$(call ko_chost_tool,nm)
-	OBJCOPY:=$(call ko_chost_tool,objcopy)
-	RC:=$(call ko_chost_tool,windres)
-	RANLIB:=$(call ko_chost_tool,ranlib)
-	READELF:=$(call ko_chost_tool,readelf)
+  # `ko_chost_tool` picks the spelling -- the prefixed one where the toolchain
+  # installs it, the plain one otherwise -- and `ensure_exe_abspath` then turns
+  # that into an absolute path, which is what CMake >=3.21 and libtool want.
+  # MSYS2's mingw-w64 binutils is the case needing the fallback: it ships
+  # `$(CHOST)-ar` and friends but only a plain `ld`, and libtool that cannot find
+  # GNU ld emits MSVC-style `-link -dll` commands that build no DLLs at all.
+  STRIP := $(call ensure_exe_abspath,$(call ko_chost_tool,strip))
+  AR := $(call ensure_exe_abspath,$(call ko_chost_tool,ar))
+  LD := $(call ensure_exe_abspath,$(call ko_chost_tool,ld))
+  NM := $(call ensure_exe_abspath,$(call ko_chost_tool,nm))
+  OBJCOPY := $(call ensure_exe_abspath,$(call ko_chost_tool,objcopy))
+  RC := $(call ensure_exe_abspath,$(call ko_chost_tool,windres))
+  RANLIB := $(call ensure_exe_abspath,$(call ko_chost_tool,ranlib))
+  READELF := $(call ensure_exe_abspath,$(call ko_chost_tool,readelf))
 else
-	STRIP:=strip
-	AR:=ar
-	LD:=ld
-	NM:=nm
-	OBJCOPY:=objcopy
-	RC:=windres
-	RANLIB:=ranlib
-	READELF:=readelf
+  STRIP := $(call ensure_exe_abspath,strip)
+  AR := $(call ensure_exe_abspath,ar)
+  LD := $(call ensure_exe_abspath,ld)
+  NM := $(call ensure_exe_abspath,nm)
+  ifndef DARWIN
+    OBJCOPY := $(call ensure_exe_abspath,objcopy)
+  endif
+  RANLIB := $(call ensure_exe_abspath,ranlib)
 endif
 
-HOSTSTRIP:=strip
-HOSTAR:=ar
-HOSTLD:=ld
-HOSTOBJCOPY:=objcopy
-HOSTRANLIB:=ranlib
-HOSTREADELF:=readelf
+ifdef EMULATE_READER
+  HOSTAR := $(AR)
+  HOSTLD := $(LD)
+  HOSTOBJCOPY := $(OBJCOPY)
+  HOSTRANLIB := $(RANLIB)
+else
+  HOSTAR := $(call ensure_exe_abspath,ar)
+  HOSTLD := $(call ensure_exe_abspath,ld)
+  HOSTOBJCOPY := $(call ensure_exe_abspath,objcopy)
+  HOSTRANLIB := $(call ensure_exe_abspath,ranlib)
+endif
 
 # Base CFLAGS, without arch. We'll need it for luajit, because its
 # Makefiles do some tricky stuff to differentiate HOST/TARGET
@@ -749,26 +715,10 @@ BUILD_ENTRYPOINT = $(CMAKE_DIR)/build.ninja
 
 ifdef EMULATE_READER
 	# Regular
-	REALCC:=$(HOSTCC)
-	REALCXX:=$(HOSTCXX)
-	HOSTCC:=$(strip $(CCACHE) $(HOSTCC))
-	HOSTCXX:=$(strip $(CCACHE) $(HOSTCXX))
-	CC:=$(HOSTCC)
-	CXX:=$(HOSTCXX)
-	STRIP:=$(HOSTSTRIP)
-	AR:=$(HOSTAR)
-	LD:=$(HOSTLD)
-	OBJCOPY:=$(HOSTOBJCOPY)
-	RANLIB:=$(HOSTRANLIB)
-	READELF:=$(HOSTREADELF)
 	CFLAGS+=$(TARGET_CFLAGS)
 	CXXFLAGS+=$(TARGET_CFLAGS)
 	export PKG_CONFIG_LIBDIR := $(abspath $(STAGING_DIR)/lib/pkgconfig)$(if $(PKG_CONFIG_LIBDIR),:$(PKG_CONFIG_LIBDIR))
 else
-	REALCC:=$(CC)
-	REALCXX:=$(CXX)
-	CC:=$(strip $(CCACHE) $(CC))
-	CXX:=$(strip $(CCACHE) $(CXX))
 	CFLAGS+=$(TARGET_CFLAGS) $(COMPAT_CFLAGS)
 	CXXFLAGS+=$(TARGET_CFLAGS) $(COMPAT_CXXFLAGS)
 	# Make sure we always have mmap() support.
@@ -849,17 +799,21 @@ ifeq ($(TARGET), linux)
 
 APPDIR = $(OUTPUT_DIR)/AppDir
 
+APPIMAGE_ARCH_armv7 = armhf
 APPIMAGE_ARCH_arm64 = aarch64
+APPIMAGE_ARCH_i386 = i686
+APPIMAGE_ARCH_i486 = i686
+APPIMAGE_ARCH_i586 = i686
 APPIMAGE_ARCH = $(or $(APPIMAGE_ARCH_$(LINUX_ARCH)),$(LINUX_ARCH))
 
 MKAPPIMAGE = $(THIRDPARTY_DIR)/appimage/build/mkappimage-$(APPIMAGE_ARCH).AppImage
 define MKAPPIMAGE_URL
-$(WGET) -O - $(if $(GH_TOKEN),--header='authorization: Bearer $(GH_TOKEN)') https://api.github.com/repos/probonopd/go-appimage/releases | jq -r '.[]
+$(WGET) -O - $(if $(GH_TOKEN),--header='authorization: Bearer $(GH_TOKEN)') https://api.github.com/repos/probonopd/go-appimage/releases | jq --raw-output '(.[]
  | select(.tag_name == "continuous")
  | .assets[]
  | select(.name | test("^mkappimage-.*-$(APPIMAGE_ARCH).AppImage$$"))
  | .browser_download_url
-'
+) // error("failed to determine download URL")'
 endef
 
 define appimage_install
@@ -869,7 +823,7 @@ $(foreach f, $2,
 endef
 
 define appimage_generate
-ARCH='$(APPIMAGE_ARCH)' VERSION='$2' $(MKAPPIMAGE) --appimage-extract-and-run $(APPDIR) $1-$2-$(APPIMAGE_ARCH).AppImage
+ARCH='$(APPIMAGE_ARCH)' VERSION='$2' $(MKAPPIMAGE) --appimage-extract-and-run $(APPDIR) $1-$2-$(APPIMAGE_ARCH)$(if $(APPIMAGE_ARCH_TAG),_$(APPIMAGE_ARCH_TAG)).AppImage
 endef
 
 endif
@@ -915,6 +869,22 @@ set(CMAKE_COLOR_DIAGNOSTICS TRUE)
 # NOTE: Remember that CMake is a special snowflake that completely *ignores* CPPFLAGS,
 # because of course it does...
 # (https://gitlab.kitware.com/cmake/cmake/issues/12928)
+# NOTE: We'll define `CMAKE_SYSTEM_PROCESSOR` ourselves (and `CMAKE_SYSTEM_NAME` too,
+# or CMake overwrite our value) to avoid cmake faulty `uname -m` based auto-detection
+# when not cross-compiling (which breaks when running under Docker with `--platform=…`,
+# or when using `gcc -m32`).
+
+# OS.
+# NOTE: use Linux for Android too (cf. https://github.com/taka-no-me/android-cmake and
+# https://android.googlesource.com/platform/ndk/+/master/build/cmake/android.toolchain.cmake)
+# In the meantime, I'll be sitting in the corner, crying hysterically.
+set(CMAKE_SYSTEM_NAME $(if $(DARWIN),Darwin,$(if $(WIN32),Windows,Linux)))
+
+# Target architecture.
+set(CMAKE_SYSTEM_PROCESSOR $(word 1,$(subst -,$(space),$(TARGET_MACHINE))))
+
+# Tell CMake we're not cross-compiling, or `try_run(…)` calls will fail.
+set(CMAKE_CROSSCOMPILING FALSE)
 
 # Build type.
 set(CMAKE_BUILD_TYPE $(if $(KODEBUG),Debug,Release))
@@ -929,12 +899,12 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 
 # C language.
 $(if $(CCACHE),set(CMAKE_C_COMPILER_LAUNCHER $(CCACHE)))
-set(CMAKE_C_COMPILER $(REALCC))
+set(CMAKE_C_COMPILER $(CC))
 set(CMAKE_C_FLAGS_INIT "$(strip $(CFLAGS))")
 
 # C++ language.
 $(if $(CCACHE),set(CMAKE_CXX_COMPILER_LAUNCHER $(CCACHE)))
-set(CMAKE_CXX_COMPILER $(REALCXX))
+set(CMAKE_CXX_COMPILER $(CXX))
 set(CMAKE_CXX_FLAGS_INIT "$(strip $(CXXFLAGS))")
 
 # OBJC language (for SDL3 on macOS).
@@ -952,6 +922,8 @@ set(CMAKE_CXX_FLAGS_INIT "$(strip $(CXXFLAGS))")
 #     The CMAKE_OBJC_COMPILER: clang is not a full path and was not found in
 #     the PATH.
 $(if $(CCACHE),set(CMAKE_OBJC_COMPILER_LAUNCHER $(CCACHE)))
+# NOTE: this needs to be an absolute path, or CMake >=3.21 blows a gasket…
+#       `ko_objc_cc` already is one; it falls back to `$(CC)` when unset.
 set(CMAKE_OBJC_COMPILER $(ko_objc_cc))
 
 # Release only flags: prevent CMake from messing
@@ -965,13 +937,12 @@ set(CMAKE_SHARED_LINKER_FLAGS_INIT "$(strip $(filter-out -shared -dynamiclib,$(L
 set(CMAKE_MODULE_LINKER_FLAGS_INIT $${CMAKE_SHARED_LINKER_FLAGS_INIT})
 
 # Tools.
-set(CMAKE_AR $(AR) CACHE FILEPATH "Archive")
-set(CMAKE_LD $(LD) CACHE FILEPATH "LD")
-set(CMAKE_NM $(NM) CACHE FILEPATH "NM")
-set(CMAKE_RANLIB $(RANLIB) CACHE FILEPATH "RanLib")
-set(CMAKE_READELF $(READELF) CACHE FILEPATH "ReadELF")
-$(if $(WIN32),set(CMAKE_RC_COMPILER $(RC) CACHE FILEPATH "Resource Compiler"))
-set(CMAKE_STRIP true CACHE FILEPATH "Strip")
+set(CMAKE_AR $(AR) CACHE FILEPATH "archive")
+set(CMAKE_LD $(LD) CACHE FILEPATH "ld")
+set(CMAKE_NM $(NM) CACHE FILEPATH "nm")
+set(CMAKE_OBJCOPY $(OBJCOPY) CACHE FILEPATH "objcopy")
+set(CMAKE_RANLIB $(RANLIB) CACHE FILEPATH "ranlib")
+set(CMAKE_STRIP true CACHE FILEPATH "strip")
 
 # Set path(s) to search for libraries/binaries/headers.
 set(CMAKE_FIND_ROOT_PATH $(abspath $(STAGING_DIR)))
@@ -999,19 +970,13 @@ define cmake_cross_toolchain
 
 $(cmake_toolchain)
 
-# OS.
-# NOTE: use Linux for Android too (cf. https://github.com/taka-no-me/android-cmake and
-# https://android.googlesource.com/platform/ndk/+/master/build/cmake/android.toolchain.cmake)
-# In the meantime, I'll be sitting in the corner, crying hysterically.
-set(CMAKE_SYSTEM_NAME $(if $(DARWIN),Darwin,$(if $(WIN32),Windows,Linux)))
+# Override native toolchain value.
+set(CMAKE_CROSSCOMPILING TRUE)
 
 # Magical value that inhibits all of CMake's own NDK handling code. (Or shit goes boom.)
 $(if $(ANDROID),set(CMAKE_SYSTEM_VERSION 1))
 # Also disable versioning of shared objects.
 $(if $(ANDROID),set(CMAKE_PLATFORM_NO_VERSIONED_SONAME TRUE))
-
-# Target architecture.
-set(CMAKE_SYSTEM_PROCESSOR $(word 1,$(subst -,$(space),$(TARGET_MACHINE))))
 
 # Search for programs in the build host directories.
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
@@ -1038,7 +1003,7 @@ set(BASE_CFLAGS    "$(strip $(BASE_CFLAGS))")
 set(CCACHE         "$(strip $(CCACHE))")
 set(CHOST          $(CHOST))
 set(EMULATE_READER $(EMULATE_READER))
-set(HOSTCC         "$(strip $(HOSTCC))")
+set(HOSTCC         "$(strip $(CCACHE) $(HOSTCC))")
 set(HOSTCFLAGS     "$(strip $(HOSTCFLAGS))")
 set(HOSTCXX        "$(strip $(HOSTCXX))")
 set(LIB_EXT        $(LIB_EXT))
@@ -1050,16 +1015,16 @@ set(STAGING_DIR    $(abspath $(STAGING_DIR)))
 set(SPEC_ROCKS_DIR $(abspath $(SPEC_ROCKS_DIR)))
 set(THIRDPARTY_DIR $(abspath $(THIRDPARTY_DIR)))
 
-set(MAKE $(MAKE))
+set(MAKE $(call ensure_exe_abspath,$(MAKE)))
 set(NINJA $(NINJA))
 set(WGET $(WGET))
 
 list(PREPEND CMAKE_MODULE_PATH $${THIRDPARTY_DIR}/cmake_modules)
 
 # Convenience autotools-like variables.
-set(CC             "$(strip $(CC))")
+set(CC             "$(strip $(CCACHE) $(CC))")
 set(CFLAGS         "$(strip $(CFLAGS))")
-set(CXX            "$(strip $(CXX))")
+set(CXX            "$(strip $(CCACHE) $(CXX))")
 set(CXXFLAGS       "$(strip $(CXXFLAGS))")
 set(LD             "$(strip $(LD))")
 set(LDFLAGS        "$(strip $(LDFLAGS))")
@@ -1068,7 +1033,6 @@ set(AR             "$(strip $(AR))")
 set(NM             "$(strip $(NM))")
 set(OBJCOPY        "$(strip $(OBJCOPY))")
 set(RANLIB         "$(strip $(RANLIB))")
-set(RC             "$(strip $(RC))")
 set(STRIP          "$(strip $(STRIP))")
 
 # Meson.
@@ -1076,6 +1040,7 @@ set(MESON_TOOLCHAINS --native-file=$(abspath $(MESON_HOST_TOOLCHAIN)) $(if $(fil
 set(MESON_FILE_ARG $(if $(filter-out $(MESON_HOST_TOOLCHAIN),$(MESON_CROSS_TOOLCHAIN)),--cross-file,--native-file))
 
 # Miscellaneous.
+set(FFI_CDECL          $(FFI_CDECL))
 set(KOTASYNC           $(KOTASYNC))
 set(MONOLIBTIC         $(MONOLIBTIC))
 set(USE_LJ_WPACLIENT   $(USE_LJ_WPACLIENT))
@@ -1133,9 +1098,9 @@ CXXFLAGS = []
 LDFLAGS = ['-L$(abspath $(STAGING_DIR)/lib)']
 
 [binaries]
-c = [CCACHE, '$(strip $(REALCC))']
+c = [CCACHE, '$(strip $(CC))']
 # c_ld
-cpp = [CCACHE, '$(strip $(REALCXX))']
+cpp = [CCACHE, '$(strip $(CXX))']
 # cpp_ld
 ar = '$(strip $(AR))'
 nm = '$(strip $(NM))'
@@ -1147,9 +1112,9 @@ strip = 'true'
 [built-in options]
 buildtype = '$(if $(KODEBUG),debug,release)'
 c_args = [$(patsubst %,'%'$(comma),$(CFLAGS))] + CPPFLAGS + CFLAGS
-c_link_args = [$(patsubst %,'%'$(comma),$(LDFLAGS))] + LDFLAGS
+c_link_args = c_args + [$(patsubst %,'%'$(comma),$(LDFLAGS))] + LDFLAGS
 cpp_args = [$(patsubst %,'%'$(comma),$(CXXFLAGS))] + CPPFLAGS + CXXFLAGS
-cpp_link_args = [$(patsubst %,'%'$(comma),$(LDFLAGS))] + LDFLAGS
+cpp_link_args = cpp_args + [$(patsubst %,'%'$(comma),$(LDFLAGS))] + LDFLAGS
 
 endef
 
@@ -1200,7 +1165,7 @@ c = [CCACHE, '$(strip $(HOSTCC))']
 # c_ld
 cpp = [CCACHE, '$(strip $(HOSTCXX))']
 # cpp_ld
-ar = '$(strip $(HOSTSTRIP))'
+ar = '$(strip $(HOSTAR))'
 ranlib = '$(strip $(HOSTRANLIB))'
 strip = 'true'
 

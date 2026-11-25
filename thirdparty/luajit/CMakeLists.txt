@@ -33,15 +33,16 @@ else()
     assert_var_defined(HOSTCC)
     assert_var_defined(HOSTCFLAGS)
 
-    # To recap, luajit builds:
-    # - its TARGET_CC from CROSS+CC, so CC need to be set to HOSTCC.
+    # To recap, the LuaJIT's build system sets:
+    # - various variables from CROSS+CC, so we need to override them
+    #   all, or our CC with an absolute path will break the build.
     # - its HOST/TARGET_CFLAGS based on CFLAGS, so we need a neutral
     #   CFLAGS without arch.
 
     # Add -m32 when cross compile on 64 bit host for 32bit target,
     # (Per: http://luajit.org/install.html#cross).
     execute_process(
-        COMMAND ${HOSTCC} -dumpmachine
+        COMMAND sh -c "${HOSTCC} -dumpmachine"
         OUTPUT_VARIABLE HOST_CC_MACHINE
     )
     if((HOST_CC_MACHINE MATCHES "^.+64-.+$") AND (NOT CMAKE_SYSTEM_PROCESSOR MATCHES ".+64$"))
@@ -51,18 +52,22 @@ else()
     endif()
 
     list(APPEND BUILD_ARGS
-        "CROSS=${CCACHE} ${CHOST}-"
-        CC=${HOSTCC}
+        CC=false
+        CROSS=${CHOST}-
         CFLAGS=${BASE_CFLAGS}
+        DYNAMIC_CC=${CC}
         LDFLAGS=
-        "HOST_CC=${CCACHE} ${HOST_CC}"
+        HOST_CC=${HOST_CC}
         HOST_CFLAGS=${HOSTCFLAGS}
         HOST_LDFLAGS=
         "TARGET_AR=${AR} rcus"
+        STATIC_CC=${CC}
         "TARGET_CFLAGS=${CFLAGS} -DLUAJIT_SECURITY_STRHASH=0 -DLUAJIT_SECURITY_STRID=0"
+        TARGET_LD=${CC}
         TARGET_LDFLAGS=${LDFLAGS}
         TARGET_RANLIB=${RANLIB}
         TARGET_SHLDFLAGS=${LDFLAGS}
+        TARGET_STRIP=${STRIP}
     )
     if(ANDROID)
         list(APPEND BUILD_ARGS TARGET_SYS=Linux)
@@ -124,7 +129,7 @@ endif()
 append_tree_install_commands(INSTALL_CMD src/jit jit)
 
 external_project(
-    DOWNLOAD GIT c6ffc141a8762b41703f9287d63d93622a13dd8f
+    DOWNLOAD GIT ea9eb7edb5eac4a9d175d74523db34fac0fa5180
     https://github.com/LuaJIT/LuaJIT
     PATCH_FILES ${PATCH_FILES}
     PATCH_COMMAND ${PATCH_CMD}
